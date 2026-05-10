@@ -3,3 +3,6 @@ Thumbs.db
 *.log
 .vscode/
 .idea/
+output/
+.server.pid
+.server.port

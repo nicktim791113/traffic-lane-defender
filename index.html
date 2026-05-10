@@ -6,158 +6,218 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
-    html, body {
+    html,
+    body {
       margin: 0;
       padding: 0;
-      height: 100%;
+      min-height: 100%;
       overflow: hidden;
       touch-action: none;
       -webkit-user-select: none;
       user-select: none;
-      background: #020617;
+      background: #10130f;
+    }
+
+    body {
+      min-height: 100dvh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #f8fafc;
     }
 
     canvas {
       display: block;
+      width: 100%;
+      height: 100%;
       touch-action: none;
+    }
+
+    .app-shell {
+      width: 100%;
+      max-width: 1160px;
+      height: 100dvh;
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-height: 0;
+    }
+
+    .game-frame {
+      position: relative;
+      width: 100%;
+      flex: 1 1 auto;
+      min-height: 420px;
+      overflow: hidden;
+      border-radius: 8px;
+      background: #20241f;
+      border: 1px solid rgba(74, 222, 128, 0.28);
+      box-shadow: 0 22px 54px rgba(0, 0, 0, 0.42);
+    }
+
+    .hud-chip {
+      border-radius: 999px;
+      background: rgba(8, 10, 8, 0.72);
+      border: 1px solid rgba(248, 250, 252, 0.14);
+      backdrop-filter: blur(8px);
+    }
+
+    .modal-panel {
+      border-radius: 8px;
+      background: rgba(22, 27, 22, 0.94);
+      border: 1px solid rgba(226, 232, 240, 0.12);
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.44);
+    }
+
+    @media (max-width: 640px) {
+      .app-shell {
+        padding: 8px;
+        gap: 8px;
+      }
+
+      .game-frame {
+        min-height: 0;
+      }
     }
   </style>
 </head>
-<body class="text-slate-100 flex items-center justify-center min-h-screen">
-  <div class="w-full max-w-3xl px-2 sm:px-4 flex flex-col gap-3">
-    <div class="flex items-center justify-between gap-2">
-      <div>
-        <div class="text-lg sm:text-2xl font-bold">左右來車防撞遊戲</div>
-        <div class="text-xs sm:text-sm text-slate-300">Traffic Lane Defender</div>
+<body>
+  <main class="app-shell">
+    <header class="flex items-center justify-between gap-2 shrink-0">
+      <div class="min-w-0">
+        <h1 class="text-lg sm:text-2xl font-bold leading-tight truncate">左右來車防撞遊戲</h1>
+        <p class="text-[11px] sm:text-sm text-emerald-100/75 leading-tight">Traffic Lane Defender</p>
       </div>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 shrink-0">
+        <div class="hidden sm:block text-right text-xs text-amber-100/85">
+          最高分 <span id="bestScoreHeader" class="font-mono font-bold text-amber-300">0</span>
+        </div>
         <button id="muteBtn"
-          class="text-xs sm:text-sm px-3 py-1.5 rounded-full border border-slate-500 bg-slate-800 hover:bg-slate-700 transition">
+          class="text-xs sm:text-sm px-3 py-1.5 rounded-full border border-emerald-300/30 bg-emerald-950/70 hover:bg-emerald-900 transition">
           🔊 聲音：開啟
         </button>
       </div>
-    </div>
+    </header>
 
-    <div class="relative w-full aspect-[9/16] sm:aspect-[16/9] bg-slate-800 rounded-xl overflow-hidden shadow-xl">
-      <canvas id="gameCanvas" class="w-full h-full"></canvas>
+    <section id="gameFrame" class="game-frame">
+      <canvas id="gameCanvas"></canvas>
 
-      <div class="absolute top-2 left-1/2 -translate-x-1/2 text-xs sm:text-sm bg-slate-900/70 px-3 py-1 rounded-full">
-        分數 Score：<span id="scoreLabel">0</span>
+      <div class="absolute top-2 left-2 right-2 flex items-start justify-between gap-2 pointer-events-none">
+        <div class="hud-chip px-3 py-1 text-[11px] sm:text-sm">
+          分數 <span id="scoreLabel" class="font-mono font-bold text-emerald-300">0</span>
+        </div>
+        <div class="hud-chip px-3 py-1 text-[11px] sm:text-sm text-center">
+          <span id="stageLabel" class="text-cyan-200">入門</span>
+        </div>
+        <div class="hud-chip px-3 py-1 text-[11px] sm:text-sm text-right">
+          Combo <span id="comboLabel" class="font-mono font-bold text-amber-300">0</span>
+        </div>
+      </div>
+
+      <div class="absolute bottom-2 left-2 right-2 flex items-end justify-between gap-2 pointer-events-none">
+        <div class="hud-chip px-3 py-1 text-[10px] sm:text-xs text-slate-200/90">
+          擦身 <span id="nearMissLabel" class="font-mono text-orange-300">0</span>
+        </div>
+        <div class="hud-chip px-3 py-1 text-[10px] sm:text-xs text-slate-200/90 sm:hidden">
+          最高分 <span id="bestScoreMobile" class="font-mono text-amber-300">0</span>
+        </div>
       </div>
 
       <div id="menuOverlay"
-           class="absolute inset-0 flex flex-col items-center justify-center bg-slate-900/80 backdrop-blur-sm">
-        <div class="bg-slate-800/90 rounded-2xl px-4 sm:px-6 py-4 sm:py-6 shadow-lg w-11/12 max-w-sm">
-          <div class="text-center mb-3 sm:mb-4">
+           class="absolute inset-0 flex flex-col items-center justify-center bg-black/64 backdrop-blur-sm px-3">
+        <div class="modal-panel px-4 sm:px-6 py-4 sm:py-6 w-full max-w-sm">
+          <div class="text-center mb-4">
             <div class="text-lg sm:text-xl font-bold mb-1">🚦 遊戲開始設定</div>
-            <div class="text-xs sm:text-sm text-slate-300">
-              管理三條車道，滑動車子上下換道，避免左右來車相撞！
+            <div class="text-xs sm:text-sm text-slate-300 leading-relaxed">
+              觀察邊緣預警，拖曳車子或用方向鍵換道，讓車流安全通過。
             </div>
           </div>
 
           <div class="mb-4">
             <div class="flex justify-between items-center mb-1.5 text-xs sm:text-sm">
               <span>車速難度</span>
-              <span id="speedDisplay" class="font-mono">1.0x</span>
+              <span id="speedDisplay" class="font-mono text-emerald-300">1.0x</span>
             </div>
             <input id="speedSlider" type="range" min="0.5" max="1.5" step="0.1"
                    class="w-full accent-emerald-400"
                    value="1.0" />
             <div class="flex justify-between text-[10px] sm:text-xs text-slate-400 mt-1">
-              <span>0.5x：慢速 / 入門</span>
-              <span>1.5x：快速 / 挑戰</span>
+              <span>0.5x 慢速</span>
+              <span>1.5x 挑戰</span>
             </div>
           </div>
 
+          <div class="grid grid-cols-2 gap-2 text-[11px] sm:text-xs text-slate-300 mb-4">
+            <div class="rounded-lg bg-white/5 px-3 py-2">滑鼠/觸控：拖曳換道</div>
+            <div class="rounded-lg bg-white/5 px-3 py-2">鍵盤：↑↓ 或 W/S</div>
+            <div class="rounded-lg bg-white/5 px-3 py-2">Tab：切換選車</div>
+            <div class="rounded-lg bg-white/5 px-3 py-2">F：全螢幕</div>
+          </div>
+
           <button id="startBtn"
-                  class="w-full py-2 sm:py-2.5 mt-1 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold text-sm sm:text-base transition">
+                  class="w-full py-2.5 rounded-lg bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-semibold text-sm sm:text-base transition">
             ▶️ 開始遊戲
           </button>
         </div>
       </div>
 
       <div id="gameOverOverlay"
-           class="absolute inset-0 hidden flex flex-col items-center justify-center bg-slate-900/80 backdrop-blur-sm">
-        <div class="bg-slate-800/90 rounded-2xl px-4 sm:px-6 py-4 sm:py-6 shadow-lg w-11/12 max-w-sm text-center">
-          <div class="text-xl sm:text-2xl font-extrabold mb-1 text-red-400 drop-shadow">
+           class="absolute inset-0 hidden flex flex-col items-center justify-center bg-black/66 backdrop-blur-sm px-3">
+        <div class="modal-panel px-4 sm:px-6 py-4 sm:py-6 w-full max-w-sm text-center">
+          <div class="text-xl sm:text-2xl font-extrabold mb-1 text-red-300 drop-shadow">
             💥 撞車了！
           </div>
           <div class="text-xs sm:text-sm text-slate-200 mb-3">
-            小小交管員辛苦了，再挑戰一次吧～
+            小小交管員辛苦了，再挑戰一次吧。
           </div>
-          <div class="text-sm sm:text-base mb-4">
-            本局分數：<span id="finalScore" class="font-bold text-emerald-300">0</span>
+          <div class="grid grid-cols-3 gap-2 text-xs sm:text-sm mb-4">
+            <div class="rounded-lg bg-white/5 px-2 py-2">
+              <div class="text-slate-400">分數</div>
+              <div id="finalScore" class="font-mono font-bold text-emerald-300 text-base">0</div>
+            </div>
+            <div class="rounded-lg bg-white/5 px-2 py-2">
+              <div class="text-slate-400">最高</div>
+              <div id="finalBestScore" class="font-mono font-bold text-amber-300 text-base">0</div>
+            </div>
+            <div class="rounded-lg bg-white/5 px-2 py-2">
+              <div class="text-slate-400">擦身</div>
+              <div id="finalNearMiss" class="font-mono font-bold text-orange-300 text-base">0</div>
+            </div>
           </div>
           <button id="restartBtn"
-                  class="w-full py-2 sm:py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-slate-900 font-semibold text-sm sm:text-base transition mb-2">
+                  class="w-full py-2.5 rounded-lg bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-semibold text-sm sm:text-base transition mb-2">
             🔁 再玩一次
           </button>
           <button id="backToMenuBtn"
-                  class="w-full py-1.5 sm:py-2 rounded-xl bg-slate-700 hover:bg-slate-600 text-slate-100 text-xs sm:text-sm transition">
+                  class="w-full py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-100 text-xs sm:text-sm transition">
             ⬅️ 回到速度設定選單
           </button>
         </div>
       </div>
-    </div>
+    </section>
 
-    <div class="text-[10px] sm:text-xs text-slate-400 text-center leading-relaxed">
-      🧠 操作方式：<br />
-      手機用手指按住車子，向上／向下滑動切換相鄰車道。電腦可用滑鼠拖曳上下。<br />
-      讓所有車子安全通過畫面另一端來累積分數，撞在一起就 GG 囉！
-    </div>
-  </div>
+    <footer class="text-[10px] sm:text-xs text-slate-300/80 text-center leading-relaxed shrink-0">
+      邊緣紅色箭頭代表即將來車。先點選車子，再用 ↑↓ / W/S 換道；擦身而過與連續安全通過會加分。
+    </footer>
+  </main>
 
   <script>
     'use strict';
 
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
-
-    let viewWidth = 0;
-    let viewHeight = 0;
-    let laneCenters = [];
-    let laneHeight = 0;
-
-    function resizeCanvas() {
-      const rect = canvas.getBoundingClientRect();
-      const dpr = window.devicePixelRatio || 1;
-      viewWidth = rect.width;
-      viewHeight = rect.height;
-
-      canvas.width = rect.width * dpr;
-      canvas.height = rect.height * dpr;
-      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-      laneHeight = viewHeight / 3;
-      laneCenters = [
-        laneHeight * 0.5,
-        laneHeight * 1.5,
-        laneHeight * 2.5
-      ];
-
-      cars.forEach(car => {
-        car.y = laneCenters[car.laneIndex];
-        car.targetY = car.y;
-        car.startY = car.y;
-      });
-    }
-
-    window.addEventListener('resize', resizeCanvas);
-
-    let gameState = 'menu';
-    let lastTime = 0;
-    let cars = [];
-    let particles = [];
-    let spawnTimer = 0;
-    let spawnInterval = 1.1;
-    let score = 0;
-    let baseSpeedMultiplier = 1.0;
-    let difficultyScale = 1.0;
-    let screenShakeTime = 0;
-    let screenShakeIntensity = 0;
+    const gameFrame = document.getElementById('gameFrame');
 
     const scoreLabel = document.getElementById('scoreLabel');
+    const comboLabel = document.getElementById('comboLabel');
+    const nearMissLabel = document.getElementById('nearMissLabel');
+    const stageLabel = document.getElementById('stageLabel');
+    const bestScoreHeader = document.getElementById('bestScoreHeader');
+    const bestScoreMobile = document.getElementById('bestScoreMobile');
     const finalScoreLabel = document.getElementById('finalScore');
+    const finalBestScoreLabel = document.getElementById('finalBestScore');
+    const finalNearMissLabel = document.getElementById('finalNearMiss');
     const menuOverlay = document.getElementById('menuOverlay');
     const gameOverOverlay = document.getElementById('gameOverOverlay');
     const speedSlider = document.getElementById('speedSlider');
@@ -167,8 +227,107 @@
     const backToMenuBtn = document.getElementById('backToMenuBtn');
     const muteBtn = document.getElementById('muteBtn');
 
+    const LANES = 3;
+    const STORAGE_KEY = 'trafficLaneDefenderBestScore';
+    const CAR_EMOJIS = ['🚗', '🚕', '🚙', '🏎️', '🚌'];
+    const CAR_THEMES = [
+      { body: '#ef4444', glass: '#bfdbfe', stripe: '#fecaca' },
+      { body: '#f59e0b', glass: '#dbeafe', stripe: '#ffedd5' },
+      { body: '#10b981', glass: '#ccfbf1', stripe: '#d1fae5' },
+      { body: '#3b82f6', glass: '#dbeafe', stripe: '#bfdbfe' },
+      { body: '#a855f7', glass: '#ede9fe', stripe: '#f5d0fe' }
+    ];
+
+    let viewWidth = 0;
+    let viewHeight = 0;
+    let laneHeight = 0;
+    let laneCenters = [];
+    let laneTops = [];
+
+    let gameState = 'menu';
+    let lastTime = 0;
+    let cars = [];
+    let particles = [];
+    let spawnWarnings = [];
+    let floatingTexts = [];
+    let nearMissPairs = new Set();
+    let spawnTimer = 0;
+    let spawnInterval = 1.2;
+    let spawnLeadTime = 0.85;
+    let maxCars = 5;
+    let nextCarId = 1;
+    let score = 0;
+    let combo = 0;
+    let comboMultiplier = 1;
+    let nearMissCount = 0;
+    let bestScore = readBestScore();
+    let baseSpeedMultiplier = 1.0;
+    let difficultyScale = 1.0;
+    let currentStage = '入門';
+    let screenShakeTime = 0;
+    let screenShakeIntensity = 0;
+    let selectedCar = null;
+
     let audioCtx = null;
     let audioEnabled = true;
+
+    function readBestScore() {
+      try {
+        return Number(window.localStorage.getItem(STORAGE_KEY)) || 0;
+      } catch (error) {
+        return 0;
+      }
+    }
+
+    function writeBestScore(value) {
+      try {
+        window.localStorage.setItem(STORAGE_KEY, String(value));
+      } catch (error) {
+        // Local storage can be unavailable in strict privacy contexts.
+      }
+    }
+
+    function updateHud() {
+      scoreLabel.textContent = String(score);
+      comboLabel.textContent = combo > 0 ? `${combo} / x${comboMultiplier}` : '0';
+      nearMissLabel.textContent = String(nearMissCount);
+      bestScoreHeader.textContent = String(bestScore);
+      bestScoreMobile.textContent = String(bestScore);
+      stageLabel.textContent = currentStage;
+    }
+
+    function resizeCanvas() {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+
+      viewWidth = Math.max(1, rect.width);
+      viewHeight = Math.max(1, rect.height);
+      canvas.width = Math.floor(viewWidth * dpr);
+      canvas.height = Math.floor(viewHeight * dpr);
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      laneHeight = viewHeight / LANES;
+      laneCenters = [];
+      laneTops = [];
+      for (let i = 0; i < LANES; i++) {
+        laneTops.push(laneHeight * i);
+        laneCenters.push(laneHeight * (i + 0.5));
+      }
+
+      cars.forEach(car => {
+        car.resize();
+        car.y = laneCenters[car.laneIndex];
+        car.startY = car.y;
+        car.targetY = car.y;
+      });
+      render();
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    document.addEventListener('fullscreenchange', resizeCanvas);
+    if ('ResizeObserver' in window) {
+      new ResizeObserver(resizeCanvas).observe(gameFrame);
+    }
 
     function ensureAudioContext() {
       if (!audioCtx) {
@@ -193,10 +352,10 @@
 
       osc.type = 'sawtooth';
       osc.frequency.setValueAtTime(1200, audioCtx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(300, audioCtx.currentTime + duration);
+      osc.frequency.exponentialRampToValueAtTime(320, audioCtx.currentTime + duration);
 
       gain.gain.setValueAtTime(0.0, audioCtx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.25, audioCtx.currentTime + 0.02);
+      gain.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + 0.02);
       gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
 
       osc.connect(gain).connect(audioCtx.destination);
@@ -209,16 +368,38 @@
       ensureAudioContext();
       if (!audioCtx) return;
 
-      const duration = 0.15;
+      const duration = 0.14;
       const osc = audioCtx.createOscillator();
       const gain = audioCtx.createGain();
 
       osc.type = 'triangle';
-      osc.frequency.setValueAtTime(600, audioCtx.currentTime);
-      osc.frequency.exponentialRampToValueAtTime(1000, audioCtx.currentTime + duration);
+      osc.frequency.setValueAtTime(560, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(920 + comboMultiplier * 60, audioCtx.currentTime + duration);
 
       gain.gain.setValueAtTime(0.0, audioCtx.currentTime);
-      gain.gain.linearRampToValueAtTime(0.3, audioCtx.currentTime + 0.01);
+      gain.gain.linearRampToValueAtTime(0.24, audioCtx.currentTime + 0.01);
+      gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start();
+      osc.stop(audioCtx.currentTime + duration);
+    }
+
+    function playNearMissSound() {
+      if (!audioEnabled) return;
+      ensureAudioContext();
+      if (!audioCtx) return;
+
+      const duration = 0.08;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+
+      osc.type = 'square';
+      osc.frequency.setValueAtTime(920, audioCtx.currentTime);
+      osc.frequency.exponentialRampToValueAtTime(1260, audioCtx.currentTime + duration);
+
+      gain.gain.setValueAtTime(0.0, audioCtx.currentTime);
+      gain.gain.linearRampToValueAtTime(0.16, audioCtx.currentTime + 0.01);
       gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
 
       osc.connect(gain).connect(audioCtx.destination);
@@ -231,7 +412,7 @@
       ensureAudioContext();
       if (!audioCtx) return;
 
-      const duration = 0.4;
+      const duration = 0.42;
       const bufferSize = audioCtx.sampleRate * duration;
       const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
       const data = buffer.getChannelData(0);
@@ -243,7 +424,7 @@
       noise.buffer = buffer;
       const gain = audioCtx.createGain();
 
-      gain.gain.setValueAtTime(0.7, audioCtx.currentTime);
+      gain.gain.setValueAtTime(0.62, audioCtx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
 
       noise.connect(gain).connect(audioCtx.destination);
@@ -261,26 +442,29 @@
       }
     });
 
-    const CAR_EMOJIS = ['🚗', '🚕', '🚙', '🏎️', '🚌'];
-
     class Car {
       constructor(laneIndex, direction) {
+        this.id = nextCarId++;
         this.laneIndex = laneIndex;
         this.direction = direction;
         this.emoji = CAR_EMOJIS[Math.floor(Math.random() * CAR_EMOJIS.length)];
-
-        const carWidth = Math.max(40, viewWidth * 0.12);
-        const carHeight = Math.max(40, laneHeight * 0.5);
-
-        this.width = carWidth;
-        this.height = carHeight;
-        this.x = direction > 0 ? -this.width - 20 : viewWidth + 20;
-        this.y = laneCenters[laneIndex];
+        this.theme = CAR_THEMES[Math.floor(Math.random() * CAR_THEMES.length)];
+        this.x = 0;
+        this.y = laneCenters[laneIndex] || 0;
         this.startY = this.y;
         this.targetY = this.y;
-        this.baseSpeed = 140 + Math.random() * 60;
+        this.width = 0;
+        this.height = 0;
+        this.baseSpeed = 132 + Math.random() * 58;
         this.laneChangeProgress = 0;
         this.isChangingLane = false;
+        this.resize();
+        this.x = direction > 0 ? -this.width - 24 : viewWidth + 24;
+      }
+
+      resize() {
+        this.width = clamp(viewWidth * 0.105, 54, 96);
+        this.height = clamp(laneHeight * 0.54, 42, 78);
       }
 
       update(dt) {
@@ -288,9 +472,9 @@
         this.x += this.direction * speed * dt;
 
         if (this.isChangingLane) {
-          const lerpSpeed = 8;
-          this.laneChangeProgress = Math.min(1, this.laneChangeProgress + lerpSpeed * dt);
-          const t = 1 - Math.pow(1 - this.laneChangeProgress, 3);
+          const laneChangeSpeed = 7.8;
+          this.laneChangeProgress = Math.min(1, this.laneChangeProgress + laneChangeSpeed * dt);
+          const t = easeOutCubic(this.laneChangeProgress);
           this.y = this.startY + (this.targetY - this.startY) * t;
 
           if (this.laneChangeProgress >= 1) {
@@ -303,7 +487,7 @@
 
       requestLaneChange(offset) {
         const newLane = this.laneIndex + offset;
-        if (newLane < 0 || newLane > 2) return false;
+        if (newLane < 0 || newLane >= LANES) return false;
 
         this.laneIndex = newLane;
         this.startY = this.y;
@@ -315,47 +499,90 @@
       }
 
       isOffscreen() {
-        return (this.direction > 0 && this.x > viewWidth + this.width + 40) ||
-               (this.direction < 0 && this.x < -this.width - 40);
+        return (this.direction > 0 && this.x > viewWidth + this.width + 42) ||
+          (this.direction < 0 && this.x < -this.width - 42);
       }
 
-      draw(ctx) {
-        ctx.save();
-        ctx.fillStyle = 'rgba(15,23,42,0.9)';
-        ctx.strokeStyle = 'rgba(148,163,184,0.8)';
-        ctx.lineWidth = 2;
-        const radius = 12;
+      draw(g, isSelected) {
         const x = this.x;
         const y = this.y - this.height / 2;
         const w = this.width;
         const h = this.height;
-        roundRect(ctx, x, y, w, h, radius);
-        ctx.fill();
-        ctx.stroke();
-        ctx.restore();
-
-        ctx.save();
-        const centerX = this.x + this.width / 2;
+        const centerX = x + w / 2;
         const centerY = this.y;
-        const fontSize = this.height * 0.9;
-        ctx.font = fontSize + 'px system-ui, Apple Color Emoji, Segoe UI Emoji';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
 
-        if (this.direction < 0) {
-          ctx.translate(centerX, centerY);
-          ctx.scale(-1, 1);
-          ctx.fillText(this.emoji, 0, 0);
-        } else {
-          ctx.translate(centerX, centerY);
-          ctx.fillText(this.emoji, 0, 0);
+        g.save();
+        g.shadowColor = 'rgba(0, 0, 0, 0.38)';
+        g.shadowBlur = 12;
+        g.shadowOffsetY = 5;
+        g.fillStyle = 'rgba(0, 0, 0, 0.28)';
+        roundRect(g, x + w * 0.08, y + h * 0.12, w * 0.84, h * 0.86, 10);
+        g.fill();
+        g.restore();
+
+        if (this.isChangingLane) {
+          g.save();
+          g.strokeStyle = 'rgba(250, 204, 21, 0.42)';
+          g.lineWidth = 4;
+          g.setLineDash([8, 8]);
+          g.beginPath();
+          g.moveTo(centerX, this.startY);
+          g.lineTo(centerX, this.targetY);
+          g.stroke();
+          g.restore();
         }
-        ctx.restore();
+
+        if (isSelected) {
+          g.save();
+          g.strokeStyle = 'rgba(250, 204, 21, 0.95)';
+          g.lineWidth = 4;
+          roundRect(g, x - 5, y - 5, w + 10, h + 10, 14);
+          g.stroke();
+          g.restore();
+        }
+
+        g.save();
+        roundRect(g, x, y, w, h, 11);
+        g.fillStyle = this.theme.body;
+        g.fill();
+        g.lineWidth = 2;
+        g.strokeStyle = 'rgba(255, 255, 255, 0.34)';
+        g.stroke();
+
+        const stripeY = y + h * 0.18;
+        g.fillStyle = this.theme.stripe;
+        roundRect(g, x + w * 0.18, stripeY, w * 0.64, h * 0.08, 4);
+        g.fill();
+
+        g.fillStyle = this.theme.glass;
+        roundRect(g, x + w * 0.28, y + h * 0.32, w * 0.44, h * 0.24, 5);
+        g.fill();
+
+        g.fillStyle = this.direction > 0 ? '#fde68a' : '#fee2e2';
+        const lightX = this.direction > 0 ? x + w * 0.84 : x + w * 0.08;
+        roundRect(g, lightX, y + h * 0.36, w * 0.08, h * 0.22, 4);
+        g.fill();
+
+        g.fillStyle = 'rgba(15, 23, 42, 0.75)';
+        g.beginPath();
+        const arrowX = this.direction > 0 ? x + w * 0.72 : x + w * 0.28;
+        const arrowTip = this.direction > 0 ? arrowX + w * 0.08 : arrowX - w * 0.08;
+        g.moveTo(arrowTip, centerY);
+        g.lineTo(arrowX, centerY - h * 0.11);
+        g.lineTo(arrowX, centerY + h * 0.11);
+        g.closePath();
+        g.fill();
+
+        g.font = `${Math.floor(h * 0.5)}px system-ui, Apple Color Emoji, Segoe UI Emoji`;
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.fillText(this.emoji, centerX, centerY + h * 0.02);
+        g.restore();
       }
 
       getHitbox() {
-        const shrinkX = this.width * 0.3;
-        const shrinkY = this.height * 0.3;
+        const shrinkX = this.width * 0.24;
+        const shrinkY = this.height * 0.22;
         return {
           x: this.x + shrinkX * 0.5,
           y: this.y - this.height / 2 + shrinkY * 0.5,
@@ -370,14 +597,14 @@
         this.x = x;
         this.y = y;
         const angle = Math.random() * Math.PI * 2;
-        const speed = 80 + Math.random() * 180;
+        const speed = 80 + Math.random() * 190;
         this.vx = Math.cos(angle) * speed;
         this.vy = Math.sin(angle) * speed;
-        this.life = 0.4 + Math.random() * 0.3;
+        this.life = 0.38 + Math.random() * 0.34;
         this.age = 0;
-        this.size = 3 + Math.random() * 4;
-        this.color = Math.random() < 0.5 ? 'rgba(248,250,252,1)'
-          : (Math.random() < 0.5 ? 'rgba(248,113,113,1)' : 'rgba(251,146,60,1)');
+        this.size = 3 + Math.random() * 5;
+        this.color = Math.random() < 0.4 ? 'rgba(248,250,252,1)'
+          : (Math.random() < 0.5 ? 'rgba(248,113,113,1)' : 'rgba(251,191,36,1)');
       }
 
       update(dt) {
@@ -391,55 +618,240 @@
         return this.age >= this.life;
       }
 
-      draw(ctx) {
+      draw(g) {
         const t = this.age / this.life;
-        const alpha = Math.max(0, 1 - t);
-        ctx.save();
-        ctx.globalAlpha = alpha;
-        ctx.fillStyle = this.color;
-        ctx.beginPath();
-        ctx.arc(this.x, this.y, this.size * (1 - t * 0.5), 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
+        g.save();
+        g.globalAlpha = Math.max(0, 1 - t);
+        g.fillStyle = this.color;
+        g.beginPath();
+        g.arc(this.x, this.y, this.size * (1 - t * 0.45), 0, Math.PI * 2);
+        g.fill();
+        g.restore();
       }
     }
 
-    function roundRect(ctx, x, y, w, h, r) {
-      const minR = Math.min(r, w / 2, h / 2);
-      ctx.beginPath();
-      ctx.moveTo(x + minR, y);
-      ctx.lineTo(x + w - minR, y);
-      ctx.quadraticCurveTo(x + w, y, x + w, y + minR);
-      ctx.lineTo(x + w, y + h - minR);
-      ctx.quadraticCurveTo(x + w, y + h, x + w - minR, y + h);
-      ctx.lineTo(x + minR, y + h);
-      ctx.quadraticCurveTo(x, y + h, x, y + h - minR);
-      ctx.lineTo(x, y + minR);
-      ctx.quadraticCurveTo(x, y, x + minR, y);
-      ctx.closePath();
+    class FloatingText {
+      constructor(text, x, y, color) {
+        this.text = text;
+        this.x = x;
+        this.y = y;
+        this.color = color;
+        this.age = 0;
+        this.life = 0.82;
+      }
+
+      update(dt) {
+        this.age += dt;
+        this.y -= 34 * dt;
+      }
+
+      isDead() {
+        return this.age >= this.life;
+      }
+
+      draw(g) {
+        const alpha = Math.max(0, 1 - this.age / this.life);
+        g.save();
+        g.globalAlpha = alpha;
+        g.font = '700 15px system-ui, sans-serif';
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        g.lineWidth = 4;
+        g.strokeStyle = 'rgba(0, 0, 0, 0.55)';
+        g.strokeText(this.text, this.x, this.y);
+        g.fillStyle = this.color;
+        g.fillText(this.text, this.x, this.y);
+        g.restore();
+      }
     }
 
-    function canSpawnCar(laneIndex, direction) {
-      const minDist = viewWidth * 0.35;
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function easeOutCubic(t) {
+      return 1 - Math.pow(1 - t, 3);
+    }
+
+    function roundRect(g, x, y, w, h, r) {
+      const minR = Math.min(r, w / 2, h / 2);
+      g.beginPath();
+      g.moveTo(x + minR, y);
+      g.lineTo(x + w - minR, y);
+      g.quadraticCurveTo(x + w, y, x + w, y + minR);
+      g.lineTo(x + w, y + h - minR);
+      g.quadraticCurveTo(x + w, y + h, x + w - minR, y + h);
+      g.lineTo(x + minR, y + h);
+      g.quadraticCurveTo(x, y + h, x, y + h - minR);
+      g.lineTo(x, y + minR);
+      g.quadraticCurveTo(x, y, x + minR, y);
+      g.closePath();
+    }
+
+    function getDifficultyCurve(points) {
+      if (points < 10) {
+        return {
+          stage: '入門',
+          speed: 1 + points * 0.012,
+          interval: 1.28 - points * 0.018,
+          lead: 0.92,
+          maxCars: 5
+        };
+      }
+      if (points < 30) {
+        const t = points - 10;
+        return {
+          stage: '進階',
+          speed: 1.12 + t * 0.017,
+          interval: 1.08 - t * 0.012,
+          lead: 0.82,
+          maxCars: 7
+        };
+      }
+      const t = points - 30;
+      return {
+        stage: '高壓',
+        speed: Math.min(2.05, 1.46 + t * 0.01),
+        interval: Math.max(0.62, 0.82 - t * 0.004),
+        lead: 0.7,
+        maxCars: 9
+      };
+    }
+
+    function applyDifficulty() {
+      const curve = getDifficultyCurve(score);
+      const oldStage = currentStage;
+      currentStage = curve.stage;
+      difficultyScale = curve.speed;
+      spawnInterval = curve.interval;
+      spawnLeadTime = curve.lead;
+      maxCars = curve.maxCars;
+
+      if (gameState === 'playing' && oldStage !== currentStage) {
+        floatingTexts.push(new FloatingText(currentStage, viewWidth / 2, viewHeight * 0.18, '#67e8f9'));
+      }
+      updateHud();
+    }
+
+    function getSpawnX(direction) {
+      return direction > 0 ? -80 : viewWidth + 80;
+    }
+
+    function canSpawnCar(laneIndex, direction, ignoreQueuedWarning = false) {
+      const spawnX = getSpawnX(direction);
+      const minSameDirectionDist = Math.max(140, viewWidth * 0.32);
+      const minOppositeDist = Math.max(220, viewWidth * 0.28);
+
       for (let car of cars) {
         if (car.laneIndex !== laneIndex) continue;
-        if (car.direction !== direction) continue;
-        if (direction > 0) {
-          if (car.x < viewWidth * 0.5 && Math.abs(car.x - (-car.width - 20)) < minDist) {
-            return false;
-          }
-        } else if (car.x > viewWidth * 0.5 && Math.abs(car.x - (viewWidth + 20)) < minDist) {
+
+        const distance = Math.abs(car.x - spawnX);
+        if (car.direction === direction && distance < minSameDirectionDist) {
+          return false;
+        }
+        if (car.direction !== direction && distance < minOppositeDist) {
           return false;
         }
       }
+
+      return ignoreQueuedWarning ||
+        !spawnWarnings.some(w => w.laneIndex === laneIndex && w.direction === direction);
+    }
+
+    function queueSpawnWarning() {
+      if (cars.length + spawnWarnings.length >= maxCars) return;
+      const maxWarnings = score < 20 ? 1 : 2;
+      if (spawnWarnings.length >= maxWarnings) return;
+
+      for (let attempt = 0; attempt < 10; attempt++) {
+        const direction = Math.random() < 0.5 ? 1 : -1;
+        const laneIndex = Math.floor(Math.random() * LANES);
+        if (canSpawnCar(laneIndex, direction)) {
+          spawnWarnings.push({
+            laneIndex,
+            direction,
+            age: 0,
+            duration: spawnLeadTime
+          });
+          return;
+        }
+      }
+    }
+
+    function spawnCar(laneIndex, direction, ignoreQueuedWarning = false) {
+      if (!canSpawnCar(laneIndex, direction, ignoreQueuedWarning)) return false;
+      cars.push(new Car(laneIndex, direction));
       return true;
     }
 
-    function spawnCar() {
-      const dir = Math.random() < 0.5 ? 1 : -1;
-      const laneIndex = Math.floor(Math.random() * 3);
-      if (!canSpawnCar(laneIndex, dir)) return;
-      cars.push(new Car(laneIndex, dir));
+    function updateSpawnWarnings(dt) {
+      const remaining = [];
+      for (let warning of spawnWarnings) {
+        warning.age += dt;
+        if (warning.age >= warning.duration) {
+          spawnCar(warning.laneIndex, warning.direction, true);
+        } else {
+          remaining.push(warning);
+        }
+      }
+      spawnWarnings = remaining;
+    }
+
+    function addScore(points, label, x, y, color) {
+      score += points;
+      if (score > bestScore) {
+        bestScore = score;
+        writeBestScore(bestScore);
+      }
+      if (label) {
+        floatingTexts.push(new FloatingText(label, clamp(x, 40, viewWidth - 40), y, color));
+      }
+      applyDifficulty();
+    }
+
+    function handleCarPassed(car) {
+      combo++;
+      comboMultiplier = combo >= 12 ? 3 : (combo >= 5 ? 2 : 1);
+      addScore(comboMultiplier, `+${comboMultiplier}`, car.x, car.y, '#86efac');
+      if (combo === 5 || combo === 12) {
+        floatingTexts.push(new FloatingText(`Combo x${comboMultiplier}`, viewWidth / 2, car.y, '#fbbf24'));
+      }
+      playPassSound();
+    }
+
+    function checkNearMisses() {
+      for (let i = 0; i < cars.length; i++) {
+        for (let j = i + 1; j < cars.length; j++) {
+          const a = cars[i];
+          const b = cars[j];
+          if (a.direction === b.direction) continue;
+
+          const pairId = a.id < b.id ? `${a.id}:${b.id}` : `${b.id}:${a.id}`;
+          if (nearMissPairs.has(pairId)) continue;
+
+          const ha = a.getHitbox();
+          const hb = b.getHitbox();
+          const horizontalOverlap = ha.x < hb.x + hb.width && ha.x + ha.width > hb.x;
+          const centerGapY = Math.abs((ha.y + ha.height / 2) - (hb.y + hb.height / 2));
+          const notColliding = !rectsOverlap(ha, hb);
+
+          if (horizontalOverlap && notColliding && centerGapY < laneHeight * 1.08) {
+            nearMissPairs.add(pairId);
+            nearMissCount++;
+            combo += 2;
+            comboMultiplier = combo >= 12 ? 3 : (combo >= 5 ? 2 : 1);
+            addScore(2, '擦身 +2', (a.x + b.x) / 2, (a.y + b.y) / 2, '#fdba74');
+            playNearMissSound();
+          }
+        }
+      }
+    }
+
+    function rectsOverlap(a, b) {
+      return a.x < b.x + b.width &&
+        a.x + a.width > b.x &&
+        a.y < b.y + b.height &&
+        a.y + a.height > b.y;
     }
 
     function checkCollisions() {
@@ -447,17 +859,10 @@
         for (let j = i + 1; j < cars.length; j++) {
           const a = cars[i];
           const b = cars[j];
-
-          if (a.laneIndex !== b.laneIndex) continue;
-
           const ha = a.getHitbox();
           const hb = b.getHitbox();
-          if (
-            ha.x < hb.x + hb.width &&
-            ha.x + ha.width > hb.x &&
-            ha.y < hb.y + hb.height &&
-            ha.y + ha.height > hb.y
-          ) {
+
+          if (rectsOverlap(ha, hb)) {
             triggerCrash((ha.x + hb.x + hb.width) / 2, (ha.y + hb.y + hb.height) / 2);
             return true;
           }
@@ -468,27 +873,46 @@
 
     function triggerCrash(x, y) {
       gameState = 'gameover';
-      for (let i = 0; i < 40; i++) {
+      activePointerId = null;
+      activeCar = null;
+      selectedCar = null;
+
+      for (let i = 0; i < 48; i++) {
         particles.push(new Particle(x, y));
       }
-      screenShakeTime = 0.45;
-      screenShakeIntensity = 10;
 
+      screenShakeTime = 0.45;
+      screenShakeIntensity = 11;
+      combo = 0;
+      comboMultiplier = 1;
       playCrashSound();
 
       finalScoreLabel.textContent = String(score);
+      finalBestScoreLabel.textContent = String(bestScore);
+      finalNearMissLabel.textContent = String(nearMissCount);
+      updateHud();
       gameOverOverlay.classList.remove('hidden');
     }
 
     function resetGame() {
       cars = [];
       particles = [];
+      spawnWarnings = [];
+      floatingTexts = [];
+      nearMissPairs = new Set();
       spawnTimer = 0;
       score = 0;
-      scoreLabel.textContent = '0';
-      difficultyScale = 1.0;
+      combo = 0;
+      comboMultiplier = 1;
+      nearMissCount = 0;
+      selectedCar = null;
+      activePointerId = null;
+      activeCar = null;
       screenShakeTime = 0;
       screenShakeIntensity = 0;
+      currentStage = '入門';
+      applyDifficulty();
+      updateHud();
     }
 
     function startGame() {
@@ -531,7 +955,7 @@
       for (let i = cars.length - 1; i >= 0; i--) {
         const car = cars[i];
         const hb = car.getHitbox();
-        const expand = 10;
+        const expand = Math.max(12, laneHeight * 0.08);
         if (
           x >= hb.x - expand &&
           x <= hb.x + hb.width + expand &&
@@ -544,6 +968,30 @@
       return null;
     }
 
+    function selectCar(car) {
+      selectedCar = car && cars.includes(car) ? car : null;
+    }
+
+    function cycleSelectedCar(direction) {
+      if (!cars.length) {
+        selectedCar = null;
+        return;
+      }
+
+      const orderedCars = [...cars].sort((a, b) => a.x - b.x);
+      let index = selectedCar ? orderedCars.indexOf(selectedCar) : -1;
+      index = (index + direction + orderedCars.length) % orderedCars.length;
+      selectedCar = orderedCars[index];
+    }
+
+    function ensureSelectedCar() {
+      if (selectedCar && cars.includes(selectedCar)) return selectedCar;
+      if (!cars.length) return null;
+      const centerX = viewWidth / 2;
+      selectedCar = [...cars].sort((a, b) => Math.abs(a.x - centerX) - Math.abs(b.x - centerX))[0];
+      return selectedCar;
+    }
+
     function handlePointerDown(id, clientX, clientY) {
       if (gameState !== 'playing') return;
       if (activePointerId !== null) return;
@@ -553,6 +1001,7 @@
       if (car) {
         activePointerId = id;
         activeCar = car;
+        selectedCar = car;
         lastPointerY = p.y;
       }
     }
@@ -564,7 +1013,7 @@
 
       const p = getCanvasPoint(clientX, clientY);
       const dy = p.y - lastPointerY;
-      const threshold = laneHeight * 0.35;
+      const threshold = laneHeight * 0.28;
 
       if (Math.abs(dy) > threshold) {
         const offset = dy < 0 ? -1 : 1;
@@ -628,6 +1077,40 @@
       }
     }, { passive: false });
 
+    window.addEventListener('keydown', function (e) {
+      if (e.key === 'f' || e.key === 'F') {
+        e.preventDefault();
+        toggleFullscreen();
+        return;
+      }
+
+      if (gameState !== 'playing') return;
+
+      if (e.key === 'Tab') {
+        e.preventDefault();
+        cycleSelectedCar(e.shiftKey ? -1 : 1);
+        return;
+      }
+
+      const key = e.key.toLowerCase();
+      if (key === 'arrowup' || key === 'w' || key === 'arrowdown' || key === 's') {
+        e.preventDefault();
+        const car = ensureSelectedCar();
+        if (!car) return;
+        car.requestLaneChange(key === 'arrowup' || key === 'w' ? -1 : 1);
+      }
+    });
+
+    function toggleFullscreen() {
+      if (!document.fullscreenElement) {
+        if (gameFrame.requestFullscreen) {
+          gameFrame.requestFullscreen();
+        }
+      } else if (document.exitFullscreen) {
+        document.exitFullscreen();
+      }
+    }
+
     function gameLoop(timestamp) {
       if (!lastTime) lastTime = timestamp;
       const dt = Math.min(0.035, (timestamp - lastTime) / 1000);
@@ -642,16 +1125,22 @@
     function update(dt) {
       particles.forEach(p => p.update(dt));
       particles = particles.filter(p => !p.isDead());
+      floatingTexts.forEach(t => t.update(dt));
+      floatingTexts = floatingTexts.filter(t => !t.isDead());
+
+      if (screenShakeTime > 0) {
+        screenShakeTime = Math.max(0, screenShakeTime - dt);
+      }
 
       if (gameState !== 'playing') return;
 
-      difficultyScale = 1 + Math.min(score * 0.03, 1.5);
-      spawnInterval = 1.1 / (1 + Math.min(score * 0.02, 1.0));
+      applyDifficulty();
+      updateSpawnWarnings(dt);
 
       spawnTimer += dt;
       if (spawnTimer >= spawnInterval) {
         spawnTimer = 0;
-        spawnCar();
+        queueSpawnWarning();
       }
 
       for (let car of cars) {
@@ -661,89 +1150,175 @@
       const remainedCars = [];
       for (let car of cars) {
         if (car.isOffscreen()) {
-          score++;
-          scoreLabel.textContent = String(score);
-          playPassSound();
+          handleCarPassed(car);
         } else {
           remainedCars.push(car);
         }
       }
       cars = remainedCars;
 
-      checkCollisions();
-
-      if (screenShakeTime > 0) {
-        screenShakeTime = Math.max(0, screenShakeTime - dt);
+      if (selectedCar && !cars.includes(selectedCar)) {
+        selectedCar = null;
       }
+
+      checkNearMisses();
+      checkCollisions();
     }
 
     function renderBackground() {
       const g = ctx;
       g.save();
-      g.fillStyle = '#020617';
+
+      const bg = g.createLinearGradient(0, 0, 0, viewHeight);
+      bg.addColorStop(0, '#17251d');
+      bg.addColorStop(0.18, '#1f2a22');
+      bg.addColorStop(0.5, '#222824');
+      bg.addColorStop(0.82, '#1e2728');
+      bg.addColorStop(1, '#13251f');
+      g.fillStyle = bg;
       g.fillRect(0, 0, viewWidth, viewHeight);
 
-      for (let i = 0; i < 3; i++) {
-        const y = laneHeight * i;
-        g.fillStyle = i === 1 ? '#0f172a' : '#020617';
+      for (let i = 0; i < LANES; i++) {
+        const y = laneTops[i];
+        const laneGradient = g.createLinearGradient(0, y, 0, y + laneHeight);
+        laneGradient.addColorStop(0, i === 1 ? '#29302d' : '#242b27');
+        laneGradient.addColorStop(1, i === 1 ? '#202823' : '#1d2420');
+        g.fillStyle = laneGradient;
         g.fillRect(0, y, viewWidth, laneHeight);
 
-        g.strokeStyle = 'rgba(148,163,184,0.4)';
-        g.lineWidth = 2;
+        g.fillStyle = 'rgba(255, 255, 255, 0.025)';
+        for (let x = -40; x < viewWidth; x += 96) {
+          g.fillRect(x, y + laneHeight * 0.16, 28, laneHeight * 0.68);
+        }
+      }
+
+      for (let i = 1; i < LANES; i++) {
+        const y = laneHeight * i;
+        g.strokeStyle = 'rgba(250, 204, 21, 0.52)';
+        g.lineWidth = 4;
+        g.setLineDash([24, 18]);
         g.beginPath();
         g.moveTo(0, y);
         g.lineTo(viewWidth, y);
         g.stroke();
       }
+      g.setLineDash([]);
 
-      g.strokeStyle = 'rgba(148,163,184,0.4)';
-      g.lineWidth = 2;
+      g.strokeStyle = 'rgba(34, 197, 94, 0.38)';
+      g.lineWidth = 8;
       g.beginPath();
-      g.moveTo(0, viewHeight);
-      g.lineTo(viewWidth, viewHeight);
+      g.moveTo(0, 3);
+      g.lineTo(viewWidth, 3);
+      g.moveTo(0, viewHeight - 3);
+      g.lineTo(viewWidth, viewHeight - 3);
       g.stroke();
 
-      g.strokeStyle = 'rgba(248,250,252,0.45)';
-      g.lineWidth = 3;
-      g.setLineDash([16, 12]);
-
-      for (let i = 0; i < 2; i++) {
-        const cy = laneHeight * (i + 1);
-        g.beginPath();
-        g.moveTo(0, cy);
-        g.lineTo(viewWidth, cy);
-        g.stroke();
-      }
-
-      g.setLineDash([]);
       g.restore();
     }
 
-    function render() {
-      ctx.clearRect(0, 0, viewWidth, viewHeight);
+    function renderSpawnWarnings() {
+      const g = ctx;
+      for (let warning of spawnWarnings) {
+        const progress = warning.age / warning.duration;
+        const pulse = 0.5 + Math.sin(progress * Math.PI * 8) * 0.5;
+        const laneTop = laneTops[warning.laneIndex];
+        const y = laneCenters[warning.laneIndex];
+        const edgeX = warning.direction > 0 ? 0 : viewWidth;
+        const arrowX = warning.direction > 0 ? 30 : viewWidth - 30;
+        const sign = warning.direction > 0 ? 1 : -1;
 
+        g.save();
+        g.fillStyle = `rgba(248, 113, 113, ${0.16 + pulse * 0.14})`;
+        g.fillRect(0, laneTop, viewWidth, laneHeight);
+
+        const edgeGlow = g.createLinearGradient(edgeX, 0, edgeX + sign * 140, 0);
+        edgeGlow.addColorStop(0, `rgba(248, 113, 113, ${0.72 + pulse * 0.24})`);
+        edgeGlow.addColorStop(1, 'rgba(248, 113, 113, 0)');
+        g.fillStyle = edgeGlow;
+        g.fillRect(warning.direction > 0 ? 0 : viewWidth - 140, laneTop, 140, laneHeight);
+
+        g.fillStyle = `rgba(254, 226, 226, ${0.75 + pulse * 0.25})`;
+        for (let i = 0; i < 3; i++) {
+          const x = arrowX + sign * i * 18;
+          g.beginPath();
+          g.moveTo(x + sign * 13, y);
+          g.lineTo(x - sign * 4, y - 15);
+          g.lineTo(x - sign * 4, y + 15);
+          g.closePath();
+          g.fill();
+        }
+        g.restore();
+      }
+    }
+
+    function render() {
+      if (!viewWidth || !viewHeight) return;
+
+      ctx.clearRect(0, 0, viewWidth, viewHeight);
       ctx.save();
+
       if (screenShakeTime > 0) {
         const shakeProgress = screenShakeTime / 0.45;
         const mag = screenShakeIntensity * shakeProgress;
-        const offsetX = (Math.random() * 2 - 1) * mag;
-        const offsetY = (Math.random() * 2 - 1) * mag;
-        ctx.translate(offsetX, offsetY);
+        ctx.translate((Math.random() * 2 - 1) * mag, (Math.random() * 2 - 1) * mag);
       }
 
       renderBackground();
+      renderSpawnWarnings();
 
       for (let car of cars) {
-        car.draw(ctx);
+        car.draw(ctx, car === selectedCar);
       }
 
-      for (let p of particles) {
-        p.draw(ctx);
+      for (let particle of particles) {
+        particle.draw(ctx);
+      }
+
+      for (let text of floatingTexts) {
+        text.draw(ctx);
       }
 
       ctx.restore();
     }
 
+    function renderGameToText() {
+      return JSON.stringify({
+        coordinateSystem: 'canvas pixels, origin top-left, x right, y down',
+        state: gameState,
+        score,
+        bestScore,
+        combo,
+        comboMultiplier,
+        nearMissCount,
+        stage: currentStage,
+        lanes: laneCenters.map((center, index) => ({ index, centerY: Math.round(center) })),
+        selectedCarId: selectedCar ? selectedCar.id : null,
+        cars: cars.map(car => ({
+          id: car.id,
+          laneIndex: car.laneIndex,
+          direction: car.direction > 0 ? 'right' : 'left',
+          x: Math.round(car.x),
+          y: Math.round(car.y),
+          changingLane: car.isChangingLane
+        })),
+        warnings: spawnWarnings.map(w => ({
+          laneIndex: w.laneIndex,
+          direction: w.direction > 0 ? 'right' : 'left',
+          remainingMs: Math.max(0, Math.round((w.duration - w.age) * 1000))
+        }))
+      });
+    }
+
+    window.render_game_to_text = renderGameToText;
+    window.advanceTime = function (ms) {
+      const steps = Math.max(1, Math.round(ms / (1000 / 60)));
+      for (let i = 0; i < steps; i++) {
+        update(1 / 60);
+      }
+      render();
+    };
+
+    updateHud();
     resizeCanvas();
     requestAnimationFrame(gameLoop);
   </script>
