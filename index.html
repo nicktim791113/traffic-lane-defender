@@ -229,14 +229,24 @@
 
     const LANES = 3;
     const STORAGE_KEY = 'trafficLaneDefenderBestScore';
-    const CAR_EMOJIS = ['🚗', '🚕', '🚙', '🏎️', '🚌'];
-    const CAR_THEMES = [
-      { body: '#ef4444', glass: '#bfdbfe', stripe: '#fecaca' },
-      { body: '#f59e0b', glass: '#dbeafe', stripe: '#ffedd5' },
-      { body: '#10b981', glass: '#ccfbf1', stripe: '#d1fae5' },
-      { body: '#3b82f6', glass: '#dbeafe', stripe: '#bfdbfe' },
-      { body: '#a855f7', glass: '#ede9fe', stripe: '#f5d0fe' }
+    const VEHICLE_FRAME_WIDTH = 780;
+    const VEHICLE_FRAME_HEIGHT = 217;
+    const VEHICLE_FRAME_COUNT = 4;
+    const VEHICLE_FRAME_BOB = [0, -2, 0, 1];
+    const VEHICLE_SPRITES = [
+      { name: 'red-sedan', row: 0, aspect: 3.4803, sourceWidth: 529, sourceHeight: 152, speedBias: 1.08 },
+      { name: 'yellow-taxi', row: 1, aspect: 3.1852, sourceWidth: 516, sourceHeight: 162, speedBias: 1.02 },
+      { name: 'blue-bus', row: 2, aspect: 4.0216, sourceWidth: 744, sourceHeight: 185, speedBias: 0.86 },
+      { name: 'orange-van', row: 3, aspect: 2.7818, sourceWidth: 459, sourceHeight: 165, speedBias: 0.94 },
+      { name: 'purple-hatchback', row: 4, aspect: 3.0738, sourceWidth: 458, sourceHeight: 149, speedBias: 1.12 }
     ];
+    const vehicleSpriteImage = new Image();
+    let vehicleSpriteReady = false;
+    vehicleSpriteImage.onload = function () {
+      vehicleSpriteReady = true;
+      render();
+    };
+    vehicleSpriteImage.src = 'assets/cars/vehicle-sprites.png';
 
     let viewWidth = 0;
     let viewHeight = 0;
@@ -246,6 +256,7 @@
 
     let gameState = 'menu';
     let lastTime = 0;
+    let gameTime = 0;
     let cars = [];
     let particles = [];
     let spawnWarnings = [];
@@ -447,15 +458,14 @@
         this.id = nextCarId++;
         this.laneIndex = laneIndex;
         this.direction = direction;
-        this.emoji = CAR_EMOJIS[Math.floor(Math.random() * CAR_EMOJIS.length)];
-        this.theme = CAR_THEMES[Math.floor(Math.random() * CAR_THEMES.length)];
+        this.sprite = VEHICLE_SPRITES[Math.floor(Math.random() * VEHICLE_SPRITES.length)];
         this.x = 0;
         this.y = laneCenters[laneIndex] || 0;
         this.startY = this.y;
         this.targetY = this.y;
         this.width = 0;
         this.height = 0;
-        this.baseSpeed = 132 + Math.random() * 58;
+        this.baseSpeed = (132 + Math.random() * 58) * this.sprite.speedBias;
         this.laneChangeProgress = 0;
         this.isChangingLane = false;
         this.resize();
@@ -463,8 +473,21 @@
       }
 
       resize() {
-        this.width = clamp(viewWidth * 0.105, 54, 96);
-        this.height = clamp(laneHeight * 0.54, 42, 78);
+        const isBus = this.sprite.name === 'blue-bus';
+        const maxHeight = isBus ? 82 : 74;
+        const minHeight = isBus ? 44 : 38;
+        const laneScale = isBus ? 0.38 : 0.36;
+        const maxWidth = Math.min(viewWidth * 0.62, isBus ? 360 : 300);
+        let nextHeight = clamp(laneHeight * laneScale, minHeight, maxHeight);
+        let nextWidth = nextHeight * this.sprite.aspect;
+
+        if (nextWidth > maxWidth) {
+          nextWidth = maxWidth;
+          nextHeight = nextWidth / this.sprite.aspect;
+        }
+
+        this.width = nextWidth;
+        this.height = nextHeight;
       }
 
       update(dt) {
@@ -511,15 +534,6 @@
         const centerX = x + w / 2;
         const centerY = this.y;
 
-        g.save();
-        g.shadowColor = 'rgba(0, 0, 0, 0.38)';
-        g.shadowBlur = 12;
-        g.shadowOffsetY = 5;
-        g.fillStyle = 'rgba(0, 0, 0, 0.28)';
-        roundRect(g, x + w * 0.08, y + h * 0.12, w * 0.84, h * 0.86, 10);
-        g.fill();
-        g.restore();
-
         if (this.isChangingLane) {
           g.save();
           g.strokeStyle = 'rgba(250, 204, 21, 0.42)';
@@ -532,57 +546,61 @@
           g.restore();
         }
 
+        g.save();
+        const shadowHeight = Math.max(8, h * 0.16);
+        const shadowY = y + h * 0.8;
+        const shadowGradient = g.createRadialGradient(centerX, shadowY, 2, centerX, shadowY, w * 0.5);
+        shadowGradient.addColorStop(0, 'rgba(0, 0, 0, 0.34)');
+        shadowGradient.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        g.fillStyle = shadowGradient;
+        g.beginPath();
+        g.ellipse(centerX, shadowY, w * 0.48, shadowHeight, 0, 0, Math.PI * 2);
+        g.fill();
+        g.restore();
+
         if (isSelected) {
           g.save();
           g.strokeStyle = 'rgba(250, 204, 21, 0.95)';
           g.lineWidth = 4;
-          roundRect(g, x - 5, y - 5, w + 10, h + 10, 14);
+          roundRect(g, x - 8, y - 8, w + 16, h + 16, 12);
           g.stroke();
           g.restore();
         }
 
+        if (!vehicleSpriteReady) {
+          drawFallbackVehicle(g, x, y, w, h, this.direction);
+          return;
+        }
+
+        const frame = Math.floor((gameTime * 10 + this.id) % VEHICLE_FRAME_COUNT);
+        const sourceX = frame * VEHICLE_FRAME_WIDTH +
+          Math.floor((VEHICLE_FRAME_WIDTH - this.sprite.sourceWidth) / 2);
+        const sourceY = this.sprite.row * VEHICLE_FRAME_HEIGHT +
+          Math.floor((VEHICLE_FRAME_HEIGHT - this.sprite.sourceHeight) / 2) +
+          VEHICLE_FRAME_BOB[frame];
+
         g.save();
-        roundRect(g, x, y, w, h, 11);
-        g.fillStyle = this.theme.body;
-        g.fill();
-        g.lineWidth = 2;
-        g.strokeStyle = 'rgba(255, 255, 255, 0.34)';
-        g.stroke();
-
-        const stripeY = y + h * 0.18;
-        g.fillStyle = this.theme.stripe;
-        roundRect(g, x + w * 0.18, stripeY, w * 0.64, h * 0.08, 4);
-        g.fill();
-
-        g.fillStyle = this.theme.glass;
-        roundRect(g, x + w * 0.28, y + h * 0.32, w * 0.44, h * 0.24, 5);
-        g.fill();
-
-        g.fillStyle = this.direction > 0 ? '#fde68a' : '#fee2e2';
-        const lightX = this.direction > 0 ? x + w * 0.84 : x + w * 0.08;
-        roundRect(g, lightX, y + h * 0.36, w * 0.08, h * 0.22, 4);
-        g.fill();
-
-        g.fillStyle = 'rgba(15, 23, 42, 0.75)';
-        g.beginPath();
-        const arrowX = this.direction > 0 ? x + w * 0.72 : x + w * 0.28;
-        const arrowTip = this.direction > 0 ? arrowX + w * 0.08 : arrowX - w * 0.08;
-        g.moveTo(arrowTip, centerY);
-        g.lineTo(arrowX, centerY - h * 0.11);
-        g.lineTo(arrowX, centerY + h * 0.11);
-        g.closePath();
-        g.fill();
-
-        g.font = `${Math.floor(h * 0.5)}px system-ui, Apple Color Emoji, Segoe UI Emoji`;
-        g.textAlign = 'center';
-        g.textBaseline = 'middle';
-        g.fillText(this.emoji, centerX, centerY + h * 0.02);
+        g.translate(centerX, centerY);
+        if (this.direction < 0) {
+          g.scale(-1, 1);
+        }
+        g.drawImage(
+          vehicleSpriteImage,
+          sourceX,
+          sourceY,
+          this.sprite.sourceWidth,
+          this.sprite.sourceHeight,
+          -w / 2,
+          -h / 2,
+          w,
+          h
+        );
         g.restore();
       }
 
       getHitbox() {
-        const shrinkX = this.width * 0.24;
-        const shrinkY = this.height * 0.22;
+        const shrinkX = this.width * 0.16;
+        const shrinkY = this.height * 0.28;
         return {
           x: this.x + shrinkX * 0.5,
           y: this.y - this.height / 2 + shrinkY * 0.5,
@@ -686,6 +704,23 @@
       g.lineTo(x, y + minR);
       g.quadraticCurveTo(x, y, x + minR, y);
       g.closePath();
+    }
+
+    function drawFallbackVehicle(g, x, y, w, h, direction) {
+      g.save();
+      roundRect(g, x, y, w, h, 10);
+      g.fillStyle = '#38bdf8';
+      g.fill();
+      g.lineWidth = 2;
+      g.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+      g.stroke();
+      g.fillStyle = '#e0f2fe';
+      roundRect(g, x + w * 0.24, y + h * 0.22, w * 0.42, h * 0.28, 5);
+      g.fill();
+      g.fillStyle = direction > 0 ? '#fde68a' : '#fecaca';
+      roundRect(g, direction > 0 ? x + w * 0.84 : x + w * 0.08, y + h * 0.38, w * 0.08, h * 0.2, 4);
+      g.fill();
+      g.restore();
     }
 
     function getDifficultyCurve(points) {
@@ -908,6 +943,7 @@
       selectedCar = null;
       activePointerId = null;
       activeCar = null;
+      gameTime = 0;
       screenShakeTime = 0;
       screenShakeIntensity = 0;
       currentStage = '入門';
@@ -1123,6 +1159,7 @@
     }
 
     function update(dt) {
+      gameTime += dt;
       particles.forEach(p => p.update(dt));
       particles = particles.filter(p => !p.isDead());
       floatingTexts.forEach(t => t.update(dt));
@@ -1295,6 +1332,7 @@
         selectedCarId: selectedCar ? selectedCar.id : null,
         cars: cars.map(car => ({
           id: car.id,
+          sprite: car.sprite.name,
           laneIndex: car.laneIndex,
           direction: car.direction > 0 ? 'right' : 'left',
           x: Math.round(car.x),

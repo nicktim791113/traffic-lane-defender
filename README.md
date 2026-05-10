@@ -17,6 +17,13 @@
 - 階段式難度曲線，速度與車流量會隨分數逐步提升。
 - 最高分、Combo 倍率與擦身獎勵會即時累積。
 - 響應式大畫面配置，桌機與手機都會盡量放大遊戲區。
+- AI 產生的透明車輛 sprite sheet，包含 4 幀行駛動畫與 GIF 預覽。
+
+## 車輛素材
+
+- 遊戲使用：`assets/cars/vehicle-sprites.png`
+- 素材資訊：`assets/cars/vehicle-sprites.json`
+- 動圖預覽：`assets/cars/vehicle-preview.gif`
 
 ## 部署
 

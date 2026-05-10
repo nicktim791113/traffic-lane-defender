@@ -1,0 +1,43 @@
+{
+  "image": "assets/cars/vehicle-sprites.png",
+  "frameWidth": 780,
+  "frameHeight": 217,
+  "frames": 4,
+  "vehicles": [
+    {
+      "name": "red-sedan",
+      "row": 0,
+      "aspect": 3.4803,
+      "sourceWidth": 529,
+      "sourceHeight": 152
+    },
+    {
+      "name": "yellow-taxi",
+      "row": 1,
+      "aspect": 3.1852,
+      "sourceWidth": 516,
+      "sourceHeight": 162
+    },
+    {
+      "name": "blue-bus",
+      "row": 2,
+      "aspect": 4.0216,
+      "sourceWidth": 744,
+      "sourceHeight": 185
+    },
+    {
+      "name": "orange-van",
+      "row": 3,
+      "aspect": 2.7818,
+      "sourceWidth": 459,
+      "sourceHeight": 165
+    },
+    {
+      "name": "purple-hatchback",
+      "row": 4,
+      "aspect": 3.0738,
+      "sourceWidth": 458,
+      "sourceHeight": 149
+    }
+  ]
+}

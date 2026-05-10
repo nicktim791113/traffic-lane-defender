@@ -9,3 +9,13 @@ Original prompt: 請繼續接著改善其他的可以改善的地方 剛剛你�
 - First Playwright run found spawn warnings never created cars because the active queued warning blocked its own spawn check. Fixed by allowing warning-triggered spawns to ignore that queued warning.
 - Verified with the develop-web-game Playwright client and additional Playwright screenshots at desktop and mobile sizes. Checked menu, warning/gameplay, selected-car keyboard control, and game-over overlay. No console/page errors found.
 - TODO ideas for next pass: add optional music, more vehicle shapes, and a deterministic tutorial mode for first-time players.
+
+## 2026-05-10 Vehicle Asset Pass
+
+- User requested more realistic car images and, if possible, an animated asset.
+- Used the `imagegen` skill to generate a chroma-key vehicle sheet, removed the green background with the skill helper using bundled Pillow, and created transparent vehicle sprites.
+- Added `assets/cars/vehicle-sprites.png`, metadata JSON, individual PNG crops, and `vehicle-preview.gif`.
+- Updated `index.html` so cars render from the sprite sheet with 4-frame animation and canvas flipping for left/right traffic.
+- Playwright screenshot check found small black chroma-key remnants; cleaned each vehicle by keeping the largest alpha component and regenerated the sprites/GIF.
+- Fixed mobile distortion by preserving each vehicle's source aspect ratio and scaling down by screen width instead of clamping width independently.
+- Re-ran Playwright smoke checks and desktop/mobile screenshots. New cars load, flip, animate, and scale correctly with no console/page errors.
