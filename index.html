@@ -229,16 +229,21 @@
 
     const LANES = 3;
     const STORAGE_KEY = 'trafficLaneDefenderBestScore';
-    const VEHICLE_FRAME_WIDTH = 780;
-    const VEHICLE_FRAME_HEIGHT = 217;
+    const VEHICLE_FRAME_WIDTH = 786;
+    const VEHICLE_FRAME_HEIGHT = 321;
     const VEHICLE_FRAME_COUNT = 4;
-    const VEHICLE_FRAME_BOB = [0, -2, 0, 1];
+    const VEHICLE_FRAME_BOB = [0, -1, 0, 1];
     const VEHICLE_SPRITES = [
-      { name: 'red-sedan', row: 0, aspect: 3.4803, sourceWidth: 529, sourceHeight: 152, speedBias: 1.08 },
-      { name: 'yellow-taxi', row: 1, aspect: 3.1852, sourceWidth: 516, sourceHeight: 162, speedBias: 1.02 },
-      { name: 'blue-bus', row: 2, aspect: 4.0216, sourceWidth: 744, sourceHeight: 185, speedBias: 0.86 },
-      { name: 'orange-van', row: 3, aspect: 2.7818, sourceWidth: 459, sourceHeight: 165, speedBias: 0.94 },
-      { name: 'purple-hatchback', row: 4, aspect: 3.0738, sourceWidth: 458, sourceHeight: 149, speedBias: 1.12 }
+      { name: 'red-sedan', row: 0, vehicleClass: 'car', aspect: 3.4803, sourceWidth: 529, sourceHeight: 152, speedBias: 1.08 },
+      { name: 'yellow-taxi', row: 1, vehicleClass: 'car', aspect: 3.1852, sourceWidth: 516, sourceHeight: 162, speedBias: 1.02 },
+      { name: 'blue-bus', row: 2, vehicleClass: 'large', aspect: 4.0216, sourceWidth: 744, sourceHeight: 185, speedBias: 0.84 },
+      { name: 'orange-van', row: 3, vehicleClass: 'van', aspect: 2.7818, sourceWidth: 459, sourceHeight: 165, speedBias: 0.94 },
+      { name: 'purple-hatchback', row: 4, vehicleClass: 'car', aspect: 3.0738, sourceWidth: 458, sourceHeight: 149, speedBias: 1.12 },
+      { name: 'dump-truck', row: 5, vehicleClass: 'heavy', aspect: 2.4296, sourceWidth: 656, sourceHeight: 270, speedBias: 0.78 },
+      { name: 'cement-mixer', row: 6, vehicleClass: 'heavy', aspect: 2.2456, sourceWidth: 640, sourceHeight: 285, speedBias: 0.74 },
+      { name: 'tow-truck', row: 7, vehicleClass: 'service', aspect: 2.2857, sourceWidth: 624, sourceHeight: 273, speedBias: 0.82 },
+      { name: 'road-roller', row: 8, vehicleClass: 'heavy', aspect: 1.987, sourceWidth: 457, sourceHeight: 230, speedBias: 0.68 },
+      { name: 'mobile-crane', row: 9, vehicleClass: 'heavy', aspect: 2.821, sourceWidth: 725, sourceHeight: 257, speedBias: 0.66 }
     ];
     const vehicleSpriteImage = new Image();
     let vehicleSpriteReady = false;
@@ -266,6 +271,8 @@
     let spawnInterval = 1.2;
     let spawnLeadTime = 0.85;
     let maxCars = 5;
+    let maxActiveConflicts = 1;
+    let minSpawnReactionTime = 5.0;
     let nextCarId = 1;
     let score = 0;
     let combo = 0;
@@ -453,12 +460,36 @@
       }
     });
 
+    function pickVehicleSprite() {
+      return VEHICLE_SPRITES[Math.floor(Math.random() * VEHICLE_SPRITES.length)];
+    }
+
+    function getVehicleRenderSize(sprite) {
+      const isHeavy = sprite.vehicleClass === 'heavy';
+      const isLarge = sprite.vehicleClass === 'large';
+      const isService = sprite.vehicleClass === 'service';
+      const isVan = sprite.vehicleClass === 'van';
+      const laneScale = isHeavy ? 0.27 : (isLarge ? 0.26 : (isService || isVan ? 0.25 : 0.23));
+      const minHeight = isHeavy || isLarge ? 34 : 30;
+      const maxHeight = isHeavy ? 58 : (isLarge ? 54 : (isService || isVan ? 50 : 46));
+      const maxWidth = Math.min(viewWidth * 0.46, isHeavy || isLarge ? 270 : 220);
+      let nextHeight = clamp(laneHeight * laneScale, minHeight, maxHeight);
+      let nextWidth = nextHeight * sprite.aspect;
+
+      if (nextWidth > maxWidth) {
+        nextWidth = maxWidth;
+        nextHeight = nextWidth / sprite.aspect;
+      }
+
+      return { width: nextWidth, height: nextHeight };
+    }
+
     class Car {
-      constructor(laneIndex, direction) {
+      constructor(laneIndex, direction, sprite = null) {
         this.id = nextCarId++;
         this.laneIndex = laneIndex;
         this.direction = direction;
-        this.sprite = VEHICLE_SPRITES[Math.floor(Math.random() * VEHICLE_SPRITES.length)];
+        this.sprite = sprite || pickVehicleSprite();
         this.x = 0;
         this.y = laneCenters[laneIndex] || 0;
         this.startY = this.y;
@@ -473,21 +504,9 @@
       }
 
       resize() {
-        const isBus = this.sprite.name === 'blue-bus';
-        const maxHeight = isBus ? 82 : 74;
-        const minHeight = isBus ? 44 : 38;
-        const laneScale = isBus ? 0.38 : 0.36;
-        const maxWidth = Math.min(viewWidth * 0.62, isBus ? 360 : 300);
-        let nextHeight = clamp(laneHeight * laneScale, minHeight, maxHeight);
-        let nextWidth = nextHeight * this.sprite.aspect;
-
-        if (nextWidth > maxWidth) {
-          nextWidth = maxWidth;
-          nextHeight = nextWidth / this.sprite.aspect;
-        }
-
-        this.width = nextWidth;
-        this.height = nextHeight;
+        const dims = getVehicleRenderSize(this.sprite);
+        this.width = dims.width;
+        this.height = dims.height;
       }
 
       update(dt) {
@@ -728,28 +747,34 @@
         return {
           stage: '入門',
           speed: 1 + points * 0.012,
-          interval: 1.28 - points * 0.018,
-          lead: 0.92,
-          maxCars: 5
+          interval: 1.46 - points * 0.016,
+          lead: 1.18,
+          maxCars: 4,
+          maxConflicts: 1,
+          reactionTime: 5.2
         };
       }
       if (points < 30) {
         const t = points - 10;
         return {
           stage: '進階',
-          speed: 1.12 + t * 0.017,
-          interval: 1.08 - t * 0.012,
-          lead: 0.82,
-          maxCars: 7
+          speed: 1.1 + t * 0.014,
+          interval: 1.28 - t * 0.008,
+          lead: 1.08,
+          maxCars: 5,
+          maxConflicts: 1,
+          reactionTime: 4.9
         };
       }
       const t = points - 30;
       return {
         stage: '高壓',
-        speed: Math.min(2.05, 1.46 + t * 0.01),
-        interval: Math.max(0.62, 0.82 - t * 0.004),
-        lead: 0.7,
-        maxCars: 9
+        speed: Math.min(1.86, 1.38 + t * 0.008),
+        interval: Math.max(0.86, 1.06 - t * 0.003),
+        lead: 0.98,
+        maxCars: 6,
+        maxConflicts: 2,
+        reactionTime: 4.5
       };
     }
 
@@ -761,6 +786,8 @@
       spawnInterval = curve.interval;
       spawnLeadTime = curve.lead;
       maxCars = curve.maxCars;
+      maxActiveConflicts = curve.maxConflicts;
+      minSpawnReactionTime = curve.reactionTime;
 
       if (gameState === 'playing' && oldStage !== currentStage) {
         floatingTexts.push(new FloatingText(currentStage, viewWidth / 2, viewHeight * 0.18, '#67e8f9'));
@@ -768,14 +795,102 @@
       updateHud();
     }
 
-    function getSpawnX(direction) {
-      return direction > 0 ? -80 : viewWidth + 80;
+    function getSpawnX(direction, sprite = null) {
+      const width = sprite ? getVehicleRenderSize(sprite).width : 80;
+      return direction > 0 ? -width - 24 : viewWidth + 24;
     }
 
-    function canSpawnCar(laneIndex, direction, ignoreQueuedWarning = false) {
-      const spawnX = getSpawnX(direction);
-      const minSameDirectionDist = Math.max(140, viewWidth * 0.32);
-      const minOppositeDist = Math.max(220, viewWidth * 0.28);
+    function getCurrentCarSpeed(car) {
+      return car.baseSpeed * baseSpeedMultiplier * difficultyScale;
+    }
+
+    function estimateSpriteSpeed(sprite) {
+      return 160 * sprite.speedBias * baseSpeedMultiplier * difficultyScale;
+    }
+
+    function getHeadOnTime(aX, aWidth, aDirection, aSpeed, bX, bWidth, bDirection, bSpeed) {
+      if (aDirection === bDirection) return Infinity;
+      if (aDirection > 0 && bDirection < 0) {
+        const gap = bX - (aX + aWidth);
+        return gap <= 0 ? 0 : gap / (aSpeed + bSpeed);
+      }
+      if (aDirection < 0 && bDirection > 0) {
+        const gap = aX - (bX + bWidth);
+        return gap <= 0 ? 0 : gap / (aSpeed + bSpeed);
+      }
+      return Infinity;
+    }
+
+    function getCandidateConflicts(laneIndex, direction, sprite) {
+      const spawnX = getSpawnX(direction, sprite);
+      const candidateSize = getVehicleRenderSize(sprite);
+      const candidateSpeed = estimateSpriteSpeed(sprite);
+      const conflicts = [];
+
+      for (let car of cars) {
+        if (car.laneIndex !== laneIndex || car.direction === direction) continue;
+        const time = getHeadOnTime(
+          spawnX,
+          candidateSize.width,
+          direction,
+          candidateSpeed,
+          car.x,
+          car.width,
+          car.direction,
+          getCurrentCarSpeed(car)
+        );
+        if (Number.isFinite(time) && time >= 0) {
+          const meetingX = spawnX + candidateSize.width / 2 + direction * candidateSpeed * time;
+          conflicts.push({ car, time, meetingX });
+        }
+      }
+
+      return conflicts;
+    }
+
+    function countActiveHeadOnConflicts() {
+      let count = 0;
+      for (let i = 0; i < cars.length; i++) {
+        for (let j = i + 1; j < cars.length; j++) {
+          const a = cars[i];
+          const b = cars[j];
+          if (a.laneIndex !== b.laneIndex || a.direction === b.direction) continue;
+          const time = getHeadOnTime(
+            a.x,
+            a.width,
+            a.direction,
+            getCurrentCarSpeed(a),
+            b.x,
+            b.width,
+            b.direction,
+            getCurrentCarSpeed(b)
+          );
+          if (Number.isFinite(time) && time < 8.5) count++;
+        }
+      }
+      return count;
+    }
+
+    function hasSafeEscapeLane(laneIndex, meetingX, conflictTime, candidateWidth) {
+      const adjacentLanes = [laneIndex - 1, laneIndex + 1].filter(lane => lane >= 0 && lane < LANES);
+      const checkTime = clamp(conflictTime * 0.55, 0.75, 3.2);
+      const clearance = Math.max(120, candidateWidth * 0.95, viewWidth * 0.16);
+
+      return adjacentLanes.some(adjacentLane => {
+        if (spawnWarnings.some(w => w.laneIndex === adjacentLane)) return false;
+        return !cars.some(car => {
+          if (car.laneIndex !== adjacentLane) return false;
+          const projectedCenter = car.x + car.width / 2 + car.direction * getCurrentCarSpeed(car) * checkTime;
+          return Math.abs(projectedCenter - meetingX) < clearance + car.width * 0.35;
+        });
+      });
+    }
+
+    function canSpawnCar(laneIndex, direction, ignoreQueuedWarning = false, sprite = null) {
+      const candidateSprite = sprite || VEHICLE_SPRITES[0];
+      const spawnX = getSpawnX(direction, candidateSprite);
+      const candidateSize = getVehicleRenderSize(candidateSprite);
+      const minSameDirectionDist = Math.max(170, viewWidth * 0.36);
 
       for (let car of cars) {
         if (car.laneIndex !== laneIndex) continue;
@@ -784,38 +899,66 @@
         if (car.direction === direction && distance < minSameDirectionDist) {
           return false;
         }
-        if (car.direction !== direction && distance < minOppositeDist) {
-          return false;
-        }
       }
 
-      return ignoreQueuedWarning ||
-        !spawnWarnings.some(w => w.laneIndex === laneIndex && w.direction === direction);
+      if (!ignoreQueuedWarning && spawnWarnings.some(w => w.laneIndex === laneIndex)) {
+        return false;
+      }
+
+      const conflicts = getCandidateConflicts(laneIndex, direction, candidateSprite);
+      if (conflicts.some(conflict => conflict.time < minSpawnReactionTime)) {
+        return false;
+      }
+
+      const activeConflicts = countActiveHeadOnConflicts();
+      if (conflicts.length > 0 && activeConflicts + conflicts.length > maxActiveConflicts) {
+        return false;
+      }
+
+      if (conflicts.some(conflict =>
+        conflict.time < 10 &&
+        !hasSafeEscapeLane(laneIndex, conflict.meetingX, conflict.time, candidateSize.width)
+      )) {
+        return false;
+      }
+
+      return true;
     }
 
     function queueSpawnWarning() {
       if (cars.length + spawnWarnings.length >= maxCars) return;
-      const maxWarnings = score < 20 ? 1 : 2;
+      const maxWarnings = score < 30 ? 1 : 2;
       if (spawnWarnings.length >= maxWarnings) return;
 
-      for (let attempt = 0; attempt < 10; attempt++) {
+      const candidates = [];
+      for (let attempt = 0; attempt < 36; attempt++) {
         const direction = Math.random() < 0.5 ? 1 : -1;
         const laneIndex = Math.floor(Math.random() * LANES);
-        if (canSpawnCar(laneIndex, direction)) {
-          spawnWarnings.push({
-            laneIndex,
-            direction,
-            age: 0,
-            duration: spawnLeadTime
-          });
-          return;
+        const sprite = pickVehicleSprite();
+        if (canSpawnCar(laneIndex, direction, false, sprite)) {
+          const laneLoad = cars.filter(car => car.laneIndex === laneIndex).length;
+          const conflicts = getCandidateConflicts(laneIndex, direction, sprite).length;
+          const candidateScore = laneLoad * 18 + conflicts * 12 + Math.random() * 10;
+          candidates.push({ laneIndex, direction, sprite, candidateScore });
         }
       }
+
+      if (!candidates.length) return;
+      candidates.sort((a, b) => a.candidateScore - b.candidateScore);
+      const chosen = candidates[0];
+      spawnWarnings.push({
+        laneIndex: chosen.laneIndex,
+        direction: chosen.direction,
+        sprite: chosen.sprite,
+        age: 0,
+        duration: spawnLeadTime
+      });
     }
 
-    function spawnCar(laneIndex, direction, ignoreQueuedWarning = false) {
-      if (!canSpawnCar(laneIndex, direction, ignoreQueuedWarning)) return false;
-      cars.push(new Car(laneIndex, direction));
+    function spawnCar(laneIndex, direction, ignoreQueuedWarning = false, sprite = null) {
+      const candidateSprite = sprite || pickVehicleSprite();
+      if (!canSpawnCar(laneIndex, direction, ignoreQueuedWarning, candidateSprite)) return false;
+      cars.push(new Car(laneIndex, direction, candidateSprite));
       return true;
     }
 
@@ -824,7 +967,10 @@
       for (let warning of spawnWarnings) {
         warning.age += dt;
         if (warning.age >= warning.duration) {
-          spawnCar(warning.laneIndex, warning.direction, true);
+          if (!spawnCar(warning.laneIndex, warning.direction, true, warning.sprite)) {
+            warning.age = warning.duration * 0.55;
+            remaining.push(warning);
+          }
         } else {
           remaining.push(warning);
         }
@@ -1342,8 +1488,14 @@
         warnings: spawnWarnings.map(w => ({
           laneIndex: w.laneIndex,
           direction: w.direction > 0 ? 'right' : 'left',
+          sprite: w.sprite ? w.sprite.name : null,
           remainingMs: Math.max(0, Math.round((w.duration - w.age) * 1000))
-        }))
+        })),
+        safety: {
+          activeHeadOnConflicts: countActiveHeadOnConflicts(),
+          maxActiveConflicts,
+          minSpawnReactionTime
+        }
       });
     }
 

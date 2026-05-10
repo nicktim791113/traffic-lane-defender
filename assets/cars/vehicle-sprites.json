@@ -1,7 +1,7 @@
 {
   "image": "assets/cars/vehicle-sprites.png",
-  "frameWidth": 780,
-  "frameHeight": 217,
+  "frameWidth": 786,
+  "frameHeight": 321,
   "frames": 4,
   "vehicles": [
     {
@@ -9,35 +9,90 @@
       "row": 0,
       "aspect": 3.4803,
       "sourceWidth": 529,
-      "sourceHeight": 152
+      "sourceHeight": 152,
+      "speedBias": 1.08,
+      "vehicleClass": "car"
     },
     {
       "name": "yellow-taxi",
       "row": 1,
       "aspect": 3.1852,
       "sourceWidth": 516,
-      "sourceHeight": 162
+      "sourceHeight": 162,
+      "speedBias": 1.02,
+      "vehicleClass": "car"
     },
     {
       "name": "blue-bus",
       "row": 2,
       "aspect": 4.0216,
       "sourceWidth": 744,
-      "sourceHeight": 185
+      "sourceHeight": 185,
+      "speedBias": 0.84,
+      "vehicleClass": "large"
     },
     {
       "name": "orange-van",
       "row": 3,
       "aspect": 2.7818,
       "sourceWidth": 459,
-      "sourceHeight": 165
+      "sourceHeight": 165,
+      "speedBias": 0.94,
+      "vehicleClass": "van"
     },
     {
       "name": "purple-hatchback",
       "row": 4,
       "aspect": 3.0738,
       "sourceWidth": 458,
-      "sourceHeight": 149
+      "sourceHeight": 149,
+      "speedBias": 1.12,
+      "vehicleClass": "car"
+    },
+    {
+      "name": "dump-truck",
+      "row": 5,
+      "aspect": 2.4296,
+      "sourceWidth": 656,
+      "sourceHeight": 270,
+      "speedBias": 0.78,
+      "vehicleClass": "heavy"
+    },
+    {
+      "name": "cement-mixer",
+      "row": 6,
+      "aspect": 2.2456,
+      "sourceWidth": 640,
+      "sourceHeight": 285,
+      "speedBias": 0.74,
+      "vehicleClass": "heavy"
+    },
+    {
+      "name": "tow-truck",
+      "row": 7,
+      "aspect": 2.2857,
+      "sourceWidth": 624,
+      "sourceHeight": 273,
+      "speedBias": 0.82,
+      "vehicleClass": "service"
+    },
+    {
+      "name": "road-roller",
+      "row": 8,
+      "aspect": 1.987,
+      "sourceWidth": 457,
+      "sourceHeight": 230,
+      "speedBias": 0.68,
+      "vehicleClass": "heavy"
+    },
+    {
+      "name": "mobile-crane",
+      "row": 9,
+      "aspect": 2.821,
+      "sourceWidth": 725,
+      "sourceHeight": 257,
+      "speedBias": 0.66,
+      "vehicleClass": "heavy"
     }
   ]
 }
