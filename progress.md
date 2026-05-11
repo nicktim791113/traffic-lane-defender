@@ -33,3 +33,13 @@ Original prompt: 請繼續接著改善其他的可以改善的地方 剛剛你�
   - checks adjacent projected lane space before allowing a new conflict,
   - reduces late-game max vehicle count and slows spawn ramp.
 - Final checks: JS syntax check, Playwright smoke, and desktop/mobile screenshot sampling passed. Safety samples stayed under the active-conflict limit and reported no console/page errors.
+
+## 2026-05-11 Stop Button + Vehicle Spawn Audio
+
+- User requested a way to manually stop/end a run before a crash, plus spawn sound effects that match each vehicle type.
+- Added an in-game top-right `結束` button that appears only during `playing`, freezes the run, preserves score, and opens the existing summary panel with manual-end copy.
+- Added dynamic game-over title/message handling and exposed `endReason`, `endButtonVisible`, and `audioEnabled` in `render_game_to_text`.
+- Added synthesized Web Audio spawn stingers per vehicle: light cars, taxi chirps, bus horn, van hum, tow-truck two-tone, and heavier diesel/noise textures for construction vehicles. Temporary audio output nodes are disconnected after each stinger.
+- README updated with the new stop control and vehicle spawn audio feature.
+- Final checks: JS syntax passed; develop-web-game Playwright client passed over a local HTTP server (file URL tainted the canvas after sprite rendering); desktop and mobile browser screenshots verified. Spawned construction/large vehicles with the audio path active, clicked the stop button, and confirmed `endReason: "manual"` plus the manual summary panel. Only console warning was the pre-existing Tailwind CDN production warning.
+- TODO ideas for next pass: replace Tailwind CDN with a local build for production hygiene, or add a small in-game audio preview/tuning panel if the user wants to fine-tune vehicle sound levels.

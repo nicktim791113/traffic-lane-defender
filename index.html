@@ -124,6 +124,13 @@
         </div>
       </div>
 
+      <button id="endGameBtn"
+              type="button"
+              class="hidden absolute top-12 right-2 z-10 inline-flex items-center gap-1.5 rounded-lg border border-red-300/35 bg-red-950/75 px-3 py-1.5 text-[11px] sm:text-sm font-semibold text-red-100 shadow-lg shadow-black/25 backdrop-blur-sm transition hover:bg-red-900/90">
+        <span aria-hidden="true" class="text-red-200 leading-none">■</span>
+        <span>結束</span>
+      </button>
+
       <div id="menuOverlay"
            class="absolute inset-0 flex flex-col items-center justify-center bg-black/64 backdrop-blur-sm px-3">
         <div class="modal-panel px-4 sm:px-6 py-4 sm:py-6 w-full max-w-sm">
@@ -153,6 +160,7 @@
             <div class="rounded-lg bg-white/5 px-3 py-2">鍵盤：↑↓ 或 W/S</div>
             <div class="rounded-lg bg-white/5 px-3 py-2">Tab：切換選車</div>
             <div class="rounded-lg bg-white/5 px-3 py-2">F：全螢幕</div>
+            <div class="rounded-lg bg-white/5 px-3 py-2">結束：右上角按鈕</div>
           </div>
 
           <button id="startBtn"
@@ -165,10 +173,10 @@
       <div id="gameOverOverlay"
            class="absolute inset-0 hidden flex flex-col items-center justify-center bg-black/66 backdrop-blur-sm px-3">
         <div class="modal-panel px-4 sm:px-6 py-4 sm:py-6 w-full max-w-sm text-center">
-          <div class="text-xl sm:text-2xl font-extrabold mb-1 text-red-300 drop-shadow">
+          <div id="gameOverTitle" class="text-xl sm:text-2xl font-extrabold mb-1 text-red-300 drop-shadow">
             💥 撞車了！
           </div>
-          <div class="text-xs sm:text-sm text-slate-200 mb-3">
+          <div id="gameOverMessage" class="text-xs sm:text-sm text-slate-200 mb-3">
             小小交管員辛苦了，再挑戰一次吧。
           </div>
           <div class="grid grid-cols-3 gap-2 text-xs sm:text-sm mb-4">
@@ -220,12 +228,15 @@
     const finalNearMissLabel = document.getElementById('finalNearMiss');
     const menuOverlay = document.getElementById('menuOverlay');
     const gameOverOverlay = document.getElementById('gameOverOverlay');
+    const gameOverTitle = document.getElementById('gameOverTitle');
+    const gameOverMessage = document.getElementById('gameOverMessage');
     const speedSlider = document.getElementById('speedSlider');
     const speedDisplay = document.getElementById('speedDisplay');
     const startBtn = document.getElementById('startBtn');
     const restartBtn = document.getElementById('restartBtn');
     const backToMenuBtn = document.getElementById('backToMenuBtn');
     const muteBtn = document.getElementById('muteBtn');
+    const endGameBtn = document.getElementById('endGameBtn');
 
     const LANES = 3;
     const STORAGE_KEY = 'trafficLaneDefenderBestScore';
@@ -285,6 +296,7 @@
     let screenShakeTime = 0;
     let screenShakeIntensity = 0;
     let selectedCar = null;
+    let gameEndReason = null;
 
     let audioCtx = null;
     let audioEnabled = true;
@@ -357,6 +369,167 @@
       if (audioCtx && audioCtx.state === 'suspended') {
         audioCtx.resume();
       }
+    }
+
+    function createAudioOutput(pan = 0, volume = 0.78) {
+      const output = audioCtx.createGain();
+      output.gain.value = volume;
+
+      if (audioCtx.createStereoPanner) {
+        const panner = audioCtx.createStereoPanner();
+        panner.pan.setValueAtTime(clamp(pan, -1, 1), audioCtx.currentTime);
+        output.connect(panner).connect(audioCtx.destination);
+      } else {
+        output.connect(audioCtx.destination);
+      }
+
+      return output;
+    }
+
+    function releaseAudioOutput(output, delayMs = 700) {
+      window.setTimeout(() => {
+        try {
+          output.disconnect();
+        } catch (error) {
+          // The node may already be disconnected by the browser.
+        }
+      }, delayMs);
+    }
+
+    function scheduleTone(output, type, startFreq, endFreq, startTime, duration, peakGain) {
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      const attack = Math.min(0.018, duration * 0.32);
+
+      osc.type = type;
+      osc.frequency.setValueAtTime(Math.max(1, startFreq), startTime);
+      if (endFreq && endFreq !== startFreq) {
+        osc.frequency.exponentialRampToValueAtTime(Math.max(1, endFreq), startTime + duration);
+      }
+
+      gain.gain.setValueAtTime(0.0001, startTime);
+      gain.gain.linearRampToValueAtTime(peakGain, startTime + attack);
+      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+      osc.connect(gain).connect(output);
+      osc.start(startTime);
+      osc.stop(startTime + duration + 0.02);
+    }
+
+    function scheduleNoiseBurst(output, startTime, duration, peakGain, filterFreq = 720, filterType = 'lowpass') {
+      const bufferSize = Math.max(1, Math.floor(audioCtx.sampleRate * duration));
+      const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = (Math.random() * 2 - 1) * (1 - i / bufferSize);
+      }
+
+      const noise = audioCtx.createBufferSource();
+      const filter = audioCtx.createBiquadFilter();
+      const gain = audioCtx.createGain();
+
+      noise.buffer = buffer;
+      filter.type = filterType;
+      filter.frequency.setValueAtTime(filterFreq, startTime);
+      gain.gain.setValueAtTime(0.0001, startTime);
+      gain.gain.linearRampToValueAtTime(peakGain, startTime + Math.min(0.012, duration * 0.35));
+      gain.gain.exponentialRampToValueAtTime(0.0001, startTime + duration);
+
+      noise.connect(filter).connect(gain).connect(output);
+      noise.start(startTime);
+      noise.stop(startTime + duration + 0.02);
+    }
+
+    function playVehicleSpawnSound(sprite, direction) {
+      if (!audioEnabled) return;
+      ensureAudioContext();
+      if (!audioCtx) return;
+
+      const now = audioCtx.currentTime;
+      const pan = direction > 0 ? -0.72 : 0.72;
+      const output = createAudioOutput(pan, 0.74);
+      const name = sprite.name;
+      const finish = (delayMs = 620) => releaseAudioOutput(output, delayMs);
+
+      if (name === 'yellow-taxi') {
+        scheduleTone(output, 'square', 820, 820, now, 0.08, 0.1);
+        scheduleTone(output, 'square', 1100, 1100, now + 0.09, 0.08, 0.08);
+        scheduleTone(output, 'triangle', 360, 520, now, 0.2, 0.07);
+        finish(420);
+        return;
+      }
+
+      if (name === 'blue-bus') {
+        scheduleTone(output, 'sine', 196, 174, now, 0.34, 0.18);
+        scheduleTone(output, 'triangle', 98, 92, now, 0.38, 0.09);
+        scheduleNoiseBurst(output, now, 0.12, 0.035, 260);
+        finish(620);
+        return;
+      }
+
+      if (name === 'tow-truck') {
+        scheduleTone(output, 'square', 580, 580, now, 0.08, 0.08);
+        scheduleTone(output, 'square', 760, 760, now + 0.1, 0.08, 0.075);
+        scheduleTone(output, 'sawtooth', 155, 120, now, 0.24, 0.08);
+        finish(480);
+        return;
+      }
+
+      if (name === 'road-roller') {
+        scheduleTone(output, 'sawtooth', 76, 58, now, 0.36, 0.16);
+        scheduleTone(output, 'triangle', 112, 92, now + 0.04, 0.28, 0.08);
+        scheduleNoiseBurst(output, now, 0.28, 0.11, 180);
+        finish(650);
+        return;
+      }
+
+      if (name === 'mobile-crane') {
+        scheduleTone(output, 'sawtooth', 92, 70, now, 0.32, 0.13);
+        scheduleTone(output, 'square', 680, 680, now + 0.06, 0.06, 0.055);
+        scheduleTone(output, 'square', 840, 840, now + 0.16, 0.06, 0.05);
+        scheduleNoiseBurst(output, now, 0.2, 0.08, 260);
+        finish(560);
+        return;
+      }
+
+      if (name === 'cement-mixer') {
+        scheduleTone(output, 'sawtooth', 88, 66, now, 0.31, 0.13);
+        scheduleTone(output, 'triangle', 150, 118, now + 0.03, 0.34, 0.08);
+        scheduleNoiseBurst(output, now, 0.24, 0.08, 230);
+        finish(620);
+        return;
+      }
+
+      if (name === 'dump-truck') {
+        scheduleTone(output, 'sawtooth', 104, 78, now, 0.3, 0.15);
+        scheduleNoiseBurst(output, now, 0.22, 0.095, 240);
+        finish(560);
+        return;
+      }
+
+      if (sprite.vehicleClass === 'van') {
+        scheduleTone(output, 'sawtooth', 280, 230, now, 0.22, 0.11);
+        scheduleTone(output, 'triangle', 420, 520, now + 0.04, 0.14, 0.05);
+        finish(420);
+        return;
+      }
+
+      scheduleTone(output, 'triangle', 520, 760, now, 0.16, 0.09);
+      scheduleTone(output, 'sawtooth', 300, 240, now, 0.18, 0.055);
+      scheduleNoiseBurst(output, now, 0.08, 0.035, 1200, 'highpass');
+      finish(380);
+    }
+
+    function playManualEndSound() {
+      if (!audioEnabled) return;
+      ensureAudioContext();
+      if (!audioCtx) return;
+
+      const now = audioCtx.currentTime;
+      const output = createAudioOutput(0, 0.68);
+      scheduleTone(output, 'triangle', 420, 280, now, 0.16, 0.1);
+      scheduleTone(output, 'sine', 260, 196, now + 0.11, 0.18, 0.075);
+      releaseAudioOutput(output, 480);
     }
 
     function playSwipeSound() {
@@ -959,6 +1132,7 @@
       const candidateSprite = sprite || pickVehicleSprite();
       if (!canSpawnCar(laneIndex, direction, ignoreQueuedWarning, candidateSprite)) return false;
       cars.push(new Car(laneIndex, direction, candidateSprite));
+      playVehicleSpawnSound(candidateSprite, direction);
       return true;
     }
 
@@ -1052,27 +1226,63 @@
       return false;
     }
 
-    function triggerCrash(x, y) {
+    function setEndGameButtonVisible(isVisible) {
+      endGameBtn.classList.toggle('hidden', !isVisible);
+    }
+
+    function showRunSummary(title, message, titleColor) {
+      gameOverTitle.textContent = title;
+      gameOverTitle.style.color = titleColor;
+      gameOverMessage.textContent = message;
+      finalScoreLabel.textContent = String(score);
+      finalBestScoreLabel.textContent = String(bestScore);
+      finalNearMissLabel.textContent = String(nearMissCount);
+      updateHud();
+      setEndGameButtonVisible(false);
+      gameOverOverlay.classList.remove('hidden');
+    }
+
+    function finishRun(reason, title, message, titleColor) {
       gameState = 'gameover';
+      gameEndReason = reason;
       activePointerId = null;
       activeCar = null;
       selectedCar = null;
+      combo = 0;
+      comboMultiplier = 1;
 
+      showRunSummary(title, message, titleColor);
+    }
+
+    function triggerCrash(x, y) {
       for (let i = 0; i < 48; i++) {
         particles.push(new Particle(x, y));
       }
 
       screenShakeTime = 0.45;
       screenShakeIntensity = 11;
-      combo = 0;
-      comboMultiplier = 1;
       playCrashSound();
 
-      finalScoreLabel.textContent = String(score);
-      finalBestScoreLabel.textContent = String(bestScore);
-      finalNearMissLabel.textContent = String(nearMissCount);
-      updateHud();
-      gameOverOverlay.classList.remove('hidden');
+      finishRun(
+        'crash',
+        '💥 撞車了！',
+        '小小交管員辛苦了，再挑戰一次吧。',
+        '#fca5a5'
+      );
+    }
+
+    function endCurrentGame() {
+      if (gameState !== 'playing') return;
+
+      spawnWarnings = [];
+      playManualEndSound();
+      finishRun(
+        'manual',
+        '■ 已結束遊戲',
+        '本次分數已保留，可以再玩一次或回設定調整車速。',
+        '#fde68a'
+      );
+      render();
     }
 
     function resetGame() {
@@ -1090,11 +1300,13 @@
       activePointerId = null;
       activeCar = null;
       gameTime = 0;
+      gameEndReason = null;
       screenShakeTime = 0;
       screenShakeIntensity = 0;
       currentStage = '入門';
       applyDifficulty();
       updateHud();
+      setEndGameButtonVisible(false);
     }
 
     function startGame() {
@@ -1104,6 +1316,7 @@
       menuOverlay.classList.add('hidden');
       gameOverOverlay.classList.add('hidden');
       gameState = 'playing';
+      setEndGameButtonVisible(true);
     }
 
     function backToMenu() {
@@ -1120,6 +1333,7 @@
     startBtn.addEventListener('click', startGame);
     restartBtn.addEventListener('click', startGame);
     backToMenuBtn.addEventListener('click', backToMenu);
+    endGameBtn.addEventListener('click', endCurrentGame);
 
     let activePointerId = null;
     let activeCar = null;
@@ -1468,6 +1682,9 @@
       return JSON.stringify({
         coordinateSystem: 'canvas pixels, origin top-left, x right, y down',
         state: gameState,
+        endReason: gameEndReason,
+        endButtonVisible: !endGameBtn.classList.contains('hidden'),
+        audioEnabled,
         score,
         bestScore,
         combo,
