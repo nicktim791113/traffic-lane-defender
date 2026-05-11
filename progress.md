@@ -62,3 +62,21 @@ Original prompt: 請繼續接著改善其他的可以改善的地方 剛剛你�
   - cars retry their appearance sound on following frames until the context is actually running;
   - appearance sound output is louder.
 - Ran JS syntax check, develop-web-game Playwright client, custom headless browser audio-state test, and a headed Chromium run that opened the game window, clicked the sound test, started gameplay, and confirmed `audioState: "running"` with three visible cars whose `appearanceSoundPlayed` flags were true.
+
+## 2026-05-11 Vehicle Sound Identity Remix
+
+- User confirmed audio is audible but said the sound identities do not match the vehicle types.
+- Web reference pass: children/ESL vehicle resources commonly map car to `vroom vroom`, bus to `beep/honk`, and truck to `honk honk`; onomatopoeia references also list `vroom`, `beep`, `honk`, rumble/rattle patterns for vehicles.
+- Rebuilt `playVehicleSpawnSound` around child-recognizable vehicle sound identities:
+  - car/hatchback: two `vroom vroom` engine revs,
+  - taxi: small engine plus high `beep beep`,
+  - bus: low diesel rumble, deep honk, and air-brake hiss,
+  - van: mid `brum brum`,
+  - tow truck: warning beeps plus metal hook/clank,
+  - dump truck: heavy rumble and low honk-honk,
+  - cement mixer: diesel plus rotating drum `wub-wub`,
+  - road roller: low rolling rumble with periodic thumps,
+  - mobile crane: hydraulic whine, beeps, and light metal clank.
+- Added shared sound helpers for engine revs, diesel rumble, horns, beep patterns, metal clanks, rotary drum pulses, hydraulic whine, and a compressor/master output bus.
+- Updated sound test button to play all 10 vehicle rows instead of 7 representative sounds.
+- Verification: JS syntax passed; develop-web-game Playwright client passed over local HTTP; custom Playwright run confirmed 10 sound-test triggers, gameplay appearance sound triggers, and `lastVehicleSoundTag` values such as `bus-low-honk-air-brake`.

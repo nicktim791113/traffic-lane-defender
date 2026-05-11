@@ -308,7 +308,10 @@
     let audioEnabled = true;
     let audioUnlocked = false;
     let audioResumePromise = null;
+    let audioCompressor = null;
+    let audioMasterGain = null;
     let vehicleAppearanceSoundCount = 0;
+    let lastVehicleSoundTag = null;
 
     function readBestScore() {
       try {
@@ -420,16 +423,33 @@
     function createAudioOutput(pan = 0, volume = 0.78) {
       const output = audioCtx.createGain();
       output.gain.value = volume;
+      const destination = getAudioDestination();
 
       if (audioCtx.createStereoPanner) {
         const panner = audioCtx.createStereoPanner();
         panner.pan.setValueAtTime(clamp(pan, -1, 1), audioCtx.currentTime);
-        output.connect(panner).connect(audioCtx.destination);
+        output.connect(panner).connect(destination);
       } else {
-        output.connect(audioCtx.destination);
+        output.connect(destination);
       }
 
       return output;
+    }
+
+    function getAudioDestination() {
+      if (!audioCompressor) {
+        audioCompressor = audioCtx.createDynamicsCompressor();
+        audioCompressor.threshold.setValueAtTime(-18, audioCtx.currentTime);
+        audioCompressor.knee.setValueAtTime(14, audioCtx.currentTime);
+        audioCompressor.ratio.setValueAtTime(3.5, audioCtx.currentTime);
+        audioCompressor.attack.setValueAtTime(0.004, audioCtx.currentTime);
+        audioCompressor.release.setValueAtTime(0.18, audioCtx.currentTime);
+
+        audioMasterGain = audioCtx.createGain();
+        audioMasterGain.gain.setValueAtTime(0.9, audioCtx.currentTime);
+        audioCompressor.connect(audioMasterGain).connect(audioCtx.destination);
+      }
+      return audioCompressor;
     }
 
     function releaseAudioOutput(output, delayMs = 700) {
@@ -486,6 +506,58 @@
       noise.stop(startTime + duration + 0.02);
     }
 
+    function scheduleEngineRev(output, startTime, lowFreq, highFreq, duration, peakGain) {
+      const upDuration = duration * 0.46;
+      const downDuration = duration * 0.54;
+      scheduleTone(output, 'sawtooth', lowFreq, highFreq, startTime, upDuration, peakGain);
+      scheduleTone(output, 'sawtooth', highFreq, Math.max(40, lowFreq * 0.82), startTime + upDuration * 0.78, downDuration, peakGain * 0.82);
+      scheduleTone(output, 'triangle', lowFreq * 0.52, highFreq * 0.48, startTime, duration, peakGain * 0.45);
+      scheduleNoiseBurst(output, startTime, duration * 0.35, peakGain * 0.18, 1150, 'highpass');
+    }
+
+    function scheduleDieselRumble(output, startTime, duration, baseFreq, peakGain) {
+      scheduleTone(output, 'sawtooth', baseFreq, baseFreq * 0.78, startTime, duration, peakGain);
+      scheduleTone(output, 'square', baseFreq * 0.5, baseFreq * 0.44, startTime, duration, peakGain * 0.34);
+      scheduleNoiseBurst(output, startTime, duration, peakGain * 0.36, 210, 'lowpass');
+    }
+
+    function scheduleHorn(output, startTime, frequency, duration, peakGain) {
+      scheduleTone(output, 'sawtooth', frequency, frequency * 0.96, startTime, duration, peakGain);
+      scheduleTone(output, 'triangle', frequency * 1.48, frequency * 1.42, startTime, duration, peakGain * 0.42);
+      scheduleTone(output, 'sine', frequency * 0.5, frequency * 0.5, startTime, duration, peakGain * 0.26);
+    }
+
+    function scheduleBeep(output, startTime, frequency, duration, peakGain) {
+      scheduleTone(output, 'square', frequency, frequency, startTime, duration, peakGain);
+      scheduleTone(output, 'triangle', frequency * 1.5, frequency * 1.5, startTime, duration, peakGain * 0.24);
+    }
+
+    function scheduleBeepPattern(output, startTime, count, frequency, gap, duration, peakGain) {
+      for (let i = 0; i < count; i++) {
+        scheduleBeep(output, startTime + i * gap, frequency, duration, peakGain);
+      }
+    }
+
+    function scheduleMetalClank(output, startTime, peakGain) {
+      scheduleTone(output, 'triangle', 940, 520, startTime, 0.08, peakGain);
+      scheduleTone(output, 'square', 1480, 760, startTime + 0.02, 0.06, peakGain * 0.42);
+      scheduleNoiseBurst(output, startTime, 0.07, peakGain * 0.42, 1800, 'highpass');
+    }
+
+    function scheduleRotaryWub(output, startTime, count, gap, baseFreq, peakGain) {
+      for (let i = 0; i < count; i++) {
+        const t = startTime + i * gap;
+        scheduleTone(output, 'sine', baseFreq, baseFreq * 0.74, t, gap * 0.72, peakGain);
+        scheduleNoiseBurst(output, t + 0.02, gap * 0.48, peakGain * 0.28, 360, 'lowpass');
+      }
+    }
+
+    function scheduleHydraulicWhine(output, startTime, duration, peakGain) {
+      scheduleTone(output, 'sine', 420, 1180, startTime, duration * 0.62, peakGain);
+      scheduleTone(output, 'triangle', 1180, 640, startTime + duration * 0.45, duration * 0.55, peakGain * 0.74);
+      scheduleNoiseBurst(output, startTime + duration * 0.18, duration * 0.42, peakGain * 0.18, 2500, 'highpass');
+    }
+
     function playVehicleSpawnSound(sprite, direction) {
       if (!audioEnabled) return true;
       ensureAudioContext();
@@ -497,78 +569,92 @@
 
       const now = audioCtx.currentTime;
       const pan = direction > 0 ? -0.72 : 0.72;
-      const output = createAudioOutput(pan, 1.15);
+      const output = createAudioOutput(pan, 1.08);
       const name = sprite.name;
-      const finish = (delayMs = 620) => releaseAudioOutput(output, delayMs);
+      const finish = (delayMs = 900) => releaseAudioOutput(output, delayMs);
       vehicleAppearanceSoundCount++;
 
       if (name === 'yellow-taxi') {
-        scheduleTone(output, 'square', 820, 820, now, 0.09, 0.16);
-        scheduleTone(output, 'square', 1100, 1100, now + 0.1, 0.09, 0.14);
-        scheduleTone(output, 'triangle', 360, 520, now, 0.24, 0.11);
-        finish(420);
+        lastVehicleSoundTag = 'taxi-beep-beep-vroom';
+        scheduleEngineRev(output, now, 230, 540, 0.34, 0.16);
+        scheduleBeep(output, now + 0.08, 920, 0.11, 0.24);
+        scheduleBeep(output, now + 0.24, 1180, 0.1, 0.2);
+        scheduleBeep(output, now + 0.4, 920, 0.09, 0.16);
+        finish(760);
         return true;
       }
 
       if (name === 'blue-bus') {
-        scheduleTone(output, 'sine', 196, 174, now, 0.38, 0.24);
-        scheduleTone(output, 'triangle', 98, 92, now, 0.42, 0.14);
-        scheduleNoiseBurst(output, now, 0.14, 0.055, 260);
-        finish(620);
+        lastVehicleSoundTag = 'bus-low-honk-air-brake';
+        scheduleDieselRumble(output, now, 0.7, 82, 0.18);
+        scheduleHorn(output, now + 0.06, 185, 0.28, 0.23);
+        scheduleHorn(output, now + 0.38, 165, 0.3, 0.2);
+        scheduleNoiseBurst(output, now + 0.68, 0.2, 0.08, 1200, 'highpass');
+        finish(1100);
         return true;
       }
 
       if (name === 'tow-truck') {
-        scheduleTone(output, 'square', 580, 580, now, 0.09, 0.13);
-        scheduleTone(output, 'square', 760, 760, now + 0.11, 0.09, 0.12);
-        scheduleTone(output, 'sawtooth', 155, 120, now, 0.28, 0.12);
-        finish(480);
+        lastVehicleSoundTag = 'tow-truck-warning-beeps-clank';
+        scheduleDieselRumble(output, now, 0.54, 96, 0.14);
+        scheduleBeepPattern(output, now + 0.05, 3, 760, 0.16, 0.08, 0.17);
+        scheduleMetalClank(output, now + 0.5, 0.13);
+        finish(980);
         return true;
       }
 
       if (name === 'road-roller') {
-        scheduleTone(output, 'sawtooth', 76, 58, now, 0.42, 0.23);
-        scheduleTone(output, 'triangle', 112, 92, now + 0.04, 0.32, 0.13);
-        scheduleNoiseBurst(output, now, 0.32, 0.16, 180);
-        finish(650);
+        lastVehicleSoundTag = 'road-roller-low-rolling-thumps';
+        scheduleDieselRumble(output, now, 0.86, 62, 0.2);
+        scheduleRotaryWub(output, now + 0.02, 5, 0.16, 74, 0.12);
+        scheduleNoiseBurst(output, now + 0.12, 0.62, 0.13, 150, 'lowpass');
+        finish(1200);
         return true;
       }
 
       if (name === 'mobile-crane') {
-        scheduleTone(output, 'sawtooth', 92, 70, now, 0.36, 0.2);
-        scheduleTone(output, 'square', 680, 680, now + 0.06, 0.07, 0.09);
-        scheduleTone(output, 'square', 840, 840, now + 0.17, 0.07, 0.085);
-        scheduleNoiseBurst(output, now, 0.23, 0.12, 260);
-        finish(560);
+        lastVehicleSoundTag = 'mobile-crane-hydraulic-whine-beeps';
+        scheduleDieselRumble(output, now, 0.52, 78, 0.13);
+        scheduleHydraulicWhine(output, now + 0.08, 0.5, 0.12);
+        scheduleBeepPattern(output, now + 0.1, 2, 880, 0.26, 0.08, 0.14);
+        scheduleMetalClank(output, now + 0.62, 0.08);
+        finish(1100);
         return true;
       }
 
       if (name === 'cement-mixer') {
-        scheduleTone(output, 'sawtooth', 88, 66, now, 0.36, 0.2);
-        scheduleTone(output, 'triangle', 150, 118, now + 0.03, 0.38, 0.13);
-        scheduleNoiseBurst(output, now, 0.28, 0.13, 230);
-        finish(620);
+        lastVehicleSoundTag = 'cement-mixer-rotating-drum';
+        scheduleDieselRumble(output, now, 0.74, 82, 0.16);
+        scheduleRotaryWub(output, now + 0.05, 5, 0.14, 118, 0.11);
+        scheduleNoiseBurst(output, now + 0.04, 0.72, 0.08, 430, 'lowpass');
+        finish(1100);
         return true;
       }
 
       if (name === 'dump-truck') {
-        scheduleTone(output, 'sawtooth', 104, 78, now, 0.35, 0.22);
-        scheduleNoiseBurst(output, now, 0.26, 0.15, 240);
-        finish(560);
+        lastVehicleSoundTag = 'dump-truck-rumble-honk-honk';
+        scheduleDieselRumble(output, now, 0.72, 74, 0.2);
+        scheduleHorn(output, now + 0.12, 150, 0.18, 0.16);
+        scheduleHorn(output, now + 0.36, 132, 0.22, 0.15);
+        scheduleNoiseBurst(output, now + 0.18, 0.38, 0.1, 260, 'lowpass');
+        finish(1050);
         return true;
       }
 
       if (sprite.vehicleClass === 'van') {
-        scheduleTone(output, 'sawtooth', 280, 230, now, 0.25, 0.16);
-        scheduleTone(output, 'triangle', 420, 520, now + 0.04, 0.16, 0.085);
-        finish(420);
+        lastVehicleSoundTag = 'van-brum-brum';
+        scheduleEngineRev(output, now, 170, 410, 0.32, 0.16);
+        scheduleEngineRev(output, now + 0.3, 180, 455, 0.28, 0.14);
+        scheduleNoiseBurst(output, now + 0.08, 0.18, 0.04, 800, 'lowpass');
+        finish(820);
         return true;
       }
 
-      scheduleTone(output, 'triangle', 520, 760, now, 0.18, 0.14);
-      scheduleTone(output, 'sawtooth', 300, 240, now, 0.2, 0.09);
-      scheduleNoiseBurst(output, now, 0.09, 0.055, 1200, 'highpass');
-      finish(380);
+      lastVehicleSoundTag = 'car-vroom-vroom';
+      scheduleEngineRev(output, now, 210, 560, 0.28, 0.16);
+      scheduleEngineRev(output, now + 0.25, 230, 650, 0.26, 0.15);
+      scheduleNoiseBurst(output, now + 0.36, 0.08, 0.05, 1500, 'highpass');
+      finish(760);
       return true;
     }
 
@@ -597,26 +683,18 @@
           return;
         }
 
-        const sampleNames = [
-          'red-sedan',
-          'yellow-taxi',
-          'blue-bus',
-          'orange-van',
-          'tow-truck',
-          'dump-truck',
-          'road-roller'
-        ];
+        const sampleNames = VEHICLE_SPRITES.map(sprite => sprite.name);
         sampleNames.forEach((name, index) => {
           window.setTimeout(() => {
             const sprite = VEHICLE_SPRITES.find(item => item.name === name) || VEHICLE_SPRITES[0];
             playVehicleSpawnSound(sprite, index % 2 === 0 ? 1 : -1);
-          }, index * 520);
+          }, index * 760);
         });
 
         window.setTimeout(() => {
           soundTestBtn.disabled = false;
           soundTestBtn.textContent = '🔊 測試車種音效';
-        }, sampleNames.length * 520 + 360);
+        }, sampleNames.length * 760 + 520);
       });
     }
 
@@ -1790,6 +1868,7 @@
         audioUnlocked,
         audioState: audioCtx ? audioCtx.state : 'unavailable',
         vehicleAppearanceSoundCount,
+        lastVehicleSoundTag,
         score,
         bestScore,
         combo,
