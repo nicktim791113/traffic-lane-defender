@@ -122,3 +122,21 @@ Original prompt: 請繼續接著改善其他的可以改善的地方 剛剛你�
   - mobile crane: hydraulic glide/whine, warning beeps, and metallic clanks.
 - Added a vehicle sound asset version query string to avoid stale browser-cached WAV files and increased the in-menu sound-test spacing to let each 2 second file be heard clearly.
 - Verification so far: generated 10 WAVs at 44.1kHz/16-bit mono, exactly 2.00s each; JS syntax passed; develop-web-game Playwright client passed over local HTTP; focused browser check decoded 10/10 WAV buffers and played all 10 via the sound-test button with no load failures.
+
+## 2026-05-12 Mixkit Sound Remap
+
+- User said new sound files had been added and asked to inspect and remap vehicle audio.
+- Found the new audio work under `.claude/worktrees/stoic-gagarin-48a309`: 10 Mixkit-derived vehicle WAVs plus `vehicle-sounds-credits.json`. The main project root was still using the older synthetic WAVs.
+- Copied the new 2.00 second Mixkit WAVs into root `assets/sounds/` and added `assets/sounds/vehicle-sounds-credits.json`.
+- Kept the existing vehicle filename contract so the game mapping remains:
+  - red-sedan -> car start ignition,
+  - purple-hatchback -> fast car drive-by,
+  - yellow-taxi -> car double horn,
+  - blue-bus -> old bus arrival,
+  - orange-van -> truck start engine,
+  - tow-truck -> truck reversing beeps,
+  - dump-truck -> truck accelerates,
+  - cement-mixer -> cement mixer stops,
+  - road-roller -> construction machine motor passing,
+  - mobile-crane -> fire truck ladder engine.
+- Bumped `VEHICLE_SOUND_ASSET_VERSION` to `20260512-mixkit-v1` and exposed it through `render_game_to_text` for browser verification.

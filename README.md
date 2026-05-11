@@ -21,7 +21,7 @@
 - 響應式大畫面配置，桌機與手機都會盡量放大遊戲區。
 - AI 產生的透明車輛 sprite sheet，包含 10 種車、4 幀行駛動畫與 GIF 預覽。
 - 安全生成器會預測對向車碰撞時間、限制同時危機數，並確認至少有一條可用逃生車道。
-- 車輛首次進入畫面時會播放對應車種的 2 秒 WAV 音效，如小客車鋸齒波 `vroom vroom`、計程車高音 `beep beep`、公車低柴油/氣煞聲與工程車金屬/液壓/低頻機械聲。
+- 車輛首次進入畫面時會播放對應車種的 2 秒 WAV 音效，已改用 Mixkit 真實錄音片段重新配對。
 - 遊戲開始後會循環播放背景音樂，並會跟右上角聲音開關連動。
 
 ## 車輛素材
@@ -30,8 +30,9 @@
 - 素材資訊：`assets/cars/vehicle-sprites.json`
 - 動圖預覽：`assets/cars/vehicle-preview.gif`
 - 工程車種類：砂石車、水泥攪拌車、拖吊車、壓路機、吊車
-- 車種音效：`assets/sounds/*.wav`（由 `scripts/generate_vehicle_sounds.js` 依車種重新合成）
-- 音效產生腳本：`scripts/generate_vehicle_sounds.js`
+- 車種音效：`assets/sounds/*.wav`（依車種配對 Mixkit 真實錄音）
+- 音效來源紀錄：`assets/sounds/vehicle-sounds-credits.json`
+- 合成備援腳本：`scripts/generate_vehicle_sounds.js`
 - 背景音樂：`assets/music/toy-car-battle.mp3`
 
 ## 部署

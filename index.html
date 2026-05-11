@@ -316,7 +316,7 @@
     const vehicleSoundBuffers = new Map();
     let vehicleAppearanceSoundCount = 0;
     let lastVehicleSoundTag = null;
-    const VEHICLE_SOUND_ASSET_VERSION = '20260511-spectral-v2';
+    const VEHICLE_SOUND_ASSET_VERSION = '20260512-mixkit-v1';
     const VEHICLE_SOUND_TEST_GAP_MS = 2350;
     const backgroundMusic = new Audio('assets/music/toy-car-battle.mp3');
     backgroundMusic.loop = true;
@@ -2016,6 +2016,7 @@
           error: backgroundMusicError
         },
         vehicleAppearanceSoundCount,
+        vehicleSoundAssetVersion: VEHICLE_SOUND_ASSET_VERSION,
         vehicleSoundAssetPlayCount,
         vehicleSoundBuffersLoaded: vehicleSoundBuffers.size,
         vehicleSoundLoadFailures,
