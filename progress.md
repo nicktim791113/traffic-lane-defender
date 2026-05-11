@@ -98,3 +98,11 @@ Original prompt: 請繼續接著改善其他的可以改善的地方 剛剛你�
 - Updated `index.html` so vehicle appearance and sound-test playback prefer decoded WAV buffers. The old Web Audio synth remains as fallback if WAV loading fails.
 - Added render text diagnostics: `vehicleSoundAssetPlayCount`, `vehicleSoundBuffersLoaded`, and `vehicleSoundLoadFailures`.
 - Verification: JS syntax passed; develop-web-game Playwright client passed over local HTTP; custom Playwright run confirmed 10/10 WAV buffers loaded, 10 sound-test asset plays, no load failures, and gameplay appearance sounds using WAV assets.
+
+## 2026-05-11 Background Music Pass
+
+- User provided `C:/Users/nickt/Downloads/玩具车大作战.mp3` and asked to use it as background music after the game starts.
+- Copied the track into the repo as `assets/music/toy-car-battle.mp3` so it can be served by GitHub Pages with an ASCII-safe path.
+- Added a looping background music audio element that starts when a run begins, pauses/resumes with the existing sound toggle, and stops/resets when the run is manually ended, crashed, or returned to the menu.
+- Added `backgroundMusic` playback diagnostics to `render_game_to_text` for browser verification.
+- Verification: JS syntax passed; develop-web-game Playwright client passed over local HTTP; focused Playwright check confirmed start plays the MP3, mute pauses it, unmute resumes it, and the end button stops/resets it. Visual screenshot check passed.

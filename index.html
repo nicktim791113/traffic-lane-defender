@@ -316,6 +316,12 @@
     const vehicleSoundBuffers = new Map();
     let vehicleAppearanceSoundCount = 0;
     let lastVehicleSoundTag = null;
+    const backgroundMusic = new Audio('assets/music/toy-car-battle.mp3');
+    backgroundMusic.loop = true;
+    backgroundMusic.preload = 'auto';
+    backgroundMusic.volume = 0.24;
+    let backgroundMusicStarted = false;
+    let backgroundMusicError = null;
 
     function readBestScore() {
       try {
@@ -742,6 +748,49 @@
       releaseAudioOutput(output, 480);
     }
 
+    function startBackgroundMusic(restart = false) {
+      backgroundMusicError = null;
+      if (!audioEnabled) return;
+      if (restart) {
+        try {
+          backgroundMusic.currentTime = 0;
+        } catch (error) {
+          // Some browsers may block seeking before metadata is loaded.
+        }
+      }
+      backgroundMusic.volume = 0.24;
+      const playPromise = backgroundMusic.play();
+      if (playPromise && typeof playPromise.then === 'function') {
+        playPromise
+          .then(() => {
+            backgroundMusicStarted = true;
+          })
+          .catch(error => {
+            backgroundMusicStarted = false;
+            backgroundMusicError = error.message || 'playback blocked';
+          });
+      } else {
+        backgroundMusicStarted = true;
+      }
+    }
+
+    function stopBackgroundMusic(reset = false) {
+      backgroundMusic.pause();
+      backgroundMusicStarted = false;
+      if (reset) {
+        try {
+          backgroundMusic.currentTime = 0;
+        } catch (error) {
+          // Ignore seek errors before metadata is ready.
+        }
+      }
+    }
+
+    backgroundMusic.addEventListener('error', function () {
+      backgroundMusicStarted = false;
+      backgroundMusicError = 'music load error';
+    });
+
     function playVehicleSoundTest() {
       audioEnabled = true;
       muteBtn.textContent = '🔊 聲音：開啟';
@@ -873,8 +922,12 @@
       if (audioEnabled) {
         muteBtn.textContent = '🔊 聲音：開啟';
         unlockAudioForGesture();
+        if (gameState === 'playing') {
+          startBackgroundMusic(false);
+        }
       } else {
         muteBtn.textContent = '🔇 聲音：關閉';
+        stopBackgroundMusic(false);
       }
     });
 
@@ -1507,6 +1560,7 @@
       selectedCar = null;
       combo = 0;
       comboMultiplier = 1;
+      stopBackgroundMusic(true);
 
       showRunSummary(title, message, titleColor);
     }
@@ -1577,9 +1631,11 @@
       gameOverOverlay.classList.add('hidden');
       gameState = 'playing';
       setEndGameButtonVisible(true);
+      startBackgroundMusic(true);
     }
 
     function backToMenu() {
+      stopBackgroundMusic(true);
       resetGame();
       gameState = 'menu';
       gameOverOverlay.classList.add('hidden');
@@ -1948,6 +2004,15 @@
         audioEnabled,
         audioUnlocked,
         audioState: audioCtx ? audioCtx.state : 'unavailable',
+        backgroundMusic: {
+          src: backgroundMusic.currentSrc || backgroundMusic.src,
+          paused: backgroundMusic.paused,
+          loop: backgroundMusic.loop,
+          volume: backgroundMusic.volume,
+          currentTime: Number(backgroundMusic.currentTime.toFixed(2)),
+          started: backgroundMusicStarted,
+          error: backgroundMusicError
+        },
         vehicleAppearanceSoundCount,
         vehicleSoundAssetPlayCount,
         vehicleSoundBuffersLoaded: vehicleSoundBuffers.size,
