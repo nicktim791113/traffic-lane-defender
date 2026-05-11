@@ -310,6 +310,10 @@
     let audioResumePromise = null;
     let audioCompressor = null;
     let audioMasterGain = null;
+    let vehicleSoundLoadPromise = null;
+    let vehicleSoundAssetPlayCount = 0;
+    let vehicleSoundLoadFailures = [];
+    const vehicleSoundBuffers = new Map();
     let vehicleAppearanceSoundCount = 0;
     let lastVehicleSoundTag = null;
 
@@ -417,6 +421,9 @@
         scheduleTone(output, 'triangle', 520, 760, now, 0.09, 0.08);
         releaseAudioOutput(output, 260);
         return true;
+      }).then((isReady) => {
+        if (isReady) loadVehicleSoundBuffers();
+        return isReady;
       });
     }
 
@@ -460,6 +467,58 @@
           // The node may already be disconnected by the browser.
         }
       }, delayMs);
+    }
+
+    function getVehicleSoundPath(sprite) {
+      return `assets/sounds/${sprite.name}.wav`;
+    }
+
+    function loadVehicleSoundBuffers() {
+      ensureAudioContext();
+      if (!audioCtx) return Promise.resolve(false);
+      if (vehicleSoundBuffers.size === VEHICLE_SPRITES.length) return Promise.resolve(true);
+      if (vehicleSoundLoadPromise) return vehicleSoundLoadPromise;
+
+      vehicleSoundLoadFailures = [];
+      vehicleSoundLoadPromise = Promise.all(VEHICLE_SPRITES.map(sprite =>
+        fetch(getVehicleSoundPath(sprite))
+          .then(response => {
+            if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
+            return response.arrayBuffer();
+          })
+          .then(arrayBuffer => audioCtx.decodeAudioData(arrayBuffer))
+          .then(audioBuffer => {
+            vehicleSoundBuffers.set(sprite.name, audioBuffer);
+          })
+          .catch(error => {
+            vehicleSoundLoadFailures.push(`${sprite.name}: ${error.message}`);
+          })
+      )).then(() => {
+        vehicleSoundLoadPromise = null;
+        return vehicleSoundBuffers.size > 0;
+      });
+
+      return vehicleSoundLoadPromise;
+    }
+
+    function playVehicleSoundAsset(sprite, direction) {
+      const buffer = vehicleSoundBuffers.get(sprite.name);
+      if (!buffer) {
+        loadVehicleSoundBuffers();
+        return false;
+      }
+
+      const pan = direction > 0 ? -0.72 : 0.72;
+      const output = createAudioOutput(pan, 1.08);
+      const source = audioCtx.createBufferSource();
+      source.buffer = buffer;
+      source.connect(output);
+      source.start();
+      releaseAudioOutput(output, Math.ceil(buffer.duration * 1000) + 240);
+      vehicleSoundAssetPlayCount++;
+      vehicleAppearanceSoundCount++;
+      lastVehicleSoundTag = `wav-${sprite.name}`;
+      return true;
     }
 
     function scheduleTone(output, type, startFreq, endFreq, startTime, duration, peakGain) {
@@ -559,6 +618,19 @@
     }
 
     function playVehicleSpawnSound(sprite, direction) {
+      if (!audioEnabled) return true;
+      ensureAudioContext();
+      if (!audioCtx) return true;
+      if (audioCtx.state !== 'running') {
+        resumeAudioContext();
+        return false;
+      }
+      if (playVehicleSoundAsset(sprite, direction)) return true;
+      if (vehicleSoundLoadFailures.length === 0) return false;
+      return playSynthVehicleSpawnSound(sprite, direction);
+    }
+
+    function playSynthVehicleSpawnSound(sprite, direction) {
       if (!audioEnabled) return true;
       ensureAudioContext();
       if (!audioCtx) return true;
@@ -678,6 +750,13 @@
 
       unlockAudioForGesture(false).then((isReady) => {
         if (!isReady) {
+          soundTestBtn.disabled = false;
+          soundTestBtn.textContent = '🔊 測試車種音效';
+          return;
+        }
+        return loadVehicleSoundBuffers();
+      }).then((hasAssets) => {
+        if (!hasAssets) {
           soundTestBtn.disabled = false;
           soundTestBtn.textContent = '🔊 測試車種音效';
           return;
@@ -1480,6 +1559,8 @@
       gameTime = 0;
       gameEndReason = null;
       vehicleAppearanceSoundCount = 0;
+      vehicleSoundAssetPlayCount = 0;
+      lastVehicleSoundTag = null;
       screenShakeTime = 0;
       screenShakeIntensity = 0;
       currentStage = '入門';
@@ -1868,6 +1949,9 @@
         audioUnlocked,
         audioState: audioCtx ? audioCtx.state : 'unavailable',
         vehicleAppearanceSoundCount,
+        vehicleSoundAssetPlayCount,
+        vehicleSoundBuffersLoaded: vehicleSoundBuffers.size,
+        vehicleSoundLoadFailures,
         lastVehicleSoundTag,
         score,
         bestScore,

@@ -21,7 +21,7 @@
 - 響應式大畫面配置，桌機與手機都會盡量放大遊戲區。
 - AI 產生的透明車輛 sprite sheet，包含 10 種車、4 幀行駛動畫與 GIF 預覽。
 - 安全生成器會預測對向車碰撞時間、限制同時危機數，並確認至少有一條可用逃生車道。
-- 車輛首次進入畫面時會播放對應車種的短音效，如小客車引擎、計程車提示音、公車低音喇叭與工程車柴油聲。
+- 車輛首次進入畫面時會播放對應車種的 WAV 音效，如小客車 `vroom vroom`、計程車 `beep beep`、公車低音喇叭與工程車柴油/機械聲。
 
 ## 車輛素材
 
@@ -29,6 +29,8 @@
 - 素材資訊：`assets/cars/vehicle-sprites.json`
 - 動圖預覽：`assets/cars/vehicle-preview.gif`
 - 工程車種類：砂石車、水泥攪拌車、拖吊車、壓路機、吊車
+- 車種音效：`assets/sounds/*.wav`
+- 音效產生腳本：`scripts/generate_vehicle_sounds.js`
 
 ## 部署
 

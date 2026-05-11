@@ -80,3 +80,21 @@ Original prompt: 請繼續接著改善其他的可以改善的地方 剛剛你�
 - Added shared sound helpers for engine revs, diesel rumble, horns, beep patterns, metal clanks, rotary drum pulses, hydraulic whine, and a compressor/master output bus.
 - Updated sound test button to play all 10 vehicle rows instead of 7 representative sounds.
 - Verification: JS syntax passed; develop-web-game Playwright client passed over local HTTP; custom Playwright run confirmed 10 sound-test triggers, gameplay appearance sound triggers, and `lastVehicleSoundTag` values such as `bus-low-honk-air-brake`.
+
+## 2026-05-11 WAV Vehicle Sound Asset Pass
+
+- User asked whether any skill can reproduce the described sounds. No dedicated audio-generation skill is installed, so used the develop-web-game workflow plus a local deterministic synthesis script.
+- Added `scripts/generate_vehicle_sounds.js` to generate original WAV assets for all 10 vehicle rows into `assets/sounds/`.
+- Generated:
+  - `red-sedan.wav`, `purple-hatchback.wav`: car/hatchback vroom-vroom revs,
+  - `yellow-taxi.wav`: small engine plus beep-beep,
+  - `blue-bus.wav`: diesel rumble, low honks, air-brake hiss,
+  - `orange-van.wav`: brum-brum van engine,
+  - `tow-truck.wav`: warning beeps and metal hook/clank,
+  - `dump-truck.wav`: heavy rumble and honk-honk,
+  - `cement-mixer.wav`: diesel plus rotating drum pulses,
+  - `road-roller.wav`: low rolling rumble and thumps,
+  - `mobile-crane.wav`: hydraulic whine, beeps, and clank.
+- Updated `index.html` so vehicle appearance and sound-test playback prefer decoded WAV buffers. The old Web Audio synth remains as fallback if WAV loading fails.
+- Added render text diagnostics: `vehicleSoundAssetPlayCount`, `vehicleSoundBuffersLoaded`, and `vehicleSoundLoadFailures`.
+- Verification: JS syntax passed; develop-web-game Playwright client passed over local HTTP; custom Playwright run confirmed 10/10 WAV buffers loaded, 10 sound-test asset plays, no load failures, and gameplay appearance sounds using WAV assets.

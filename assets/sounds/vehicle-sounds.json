@@ -1,0 +1,12 @@
+{
+  "red-sedan": "assets/sounds/red-sedan.wav",
+  "purple-hatchback": "assets/sounds/purple-hatchback.wav",
+  "yellow-taxi": "assets/sounds/yellow-taxi.wav",
+  "blue-bus": "assets/sounds/blue-bus.wav",
+  "orange-van": "assets/sounds/orange-van.wav",
+  "tow-truck": "assets/sounds/tow-truck.wav",
+  "dump-truck": "assets/sounds/dump-truck.wav",
+  "cement-mixer": "assets/sounds/cement-mixer.wav",
+  "road-roller": "assets/sounds/road-roller.wav",
+  "mobile-crane": "assets/sounds/mobile-crane.wav"
+}
