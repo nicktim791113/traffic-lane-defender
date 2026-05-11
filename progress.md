@@ -43,3 +43,11 @@ Original prompt: 請繼續接著改善其他的可以改善的地方 剛剛你�
 - README updated with the new stop control and vehicle spawn audio feature.
 - Final checks: JS syntax passed; develop-web-game Playwright client passed over a local HTTP server (file URL tainted the canvas after sprite rendering); desktop and mobile browser screenshots verified. Spawned construction/large vehicles with the audio path active, clicked the stop button, and confirmed `endReason: "manual"` plus the manual summary panel. Only console warning was the pre-existing Tailwind CDN production warning.
 - TODO ideas for next pass: replace Tailwind CDN with a local build for production hygiene, or add a small in-game audio preview/tuning panel if the user wants to fine-tune vehicle sound levels.
+
+## 2026-05-11 Vehicle Audio Audibility Fix
+
+- User tested GitHub Pages and could not hear vehicle-type appearance sounds.
+- Root cause: the prior implementation triggered the sound when a car object spawned offscreen, before the vehicle was visibly entering the lane. Mobile browsers can also require a real user gesture to unlock Web Audio.
+- Fixed by unlocking Web Audio with a silent oscillator on start/touch/click, delaying each vehicle sound until its front edge first enters the visible canvas, and raising the appearance stinger levels.
+- Added `audioUnlocked`, `audioState`, `vehicleAppearanceSoundCount`, and per-car `appearanceSoundPlayed` to `render_game_to_text` for verification.
+- Final checks: JS syntax passed; develop-web-game Playwright client passed over local HTTP; custom Playwright run advanced gameplay until visible vehicles appeared and confirmed `audioState: "running"`, `audioUnlocked: true`, `vehicleAppearanceSoundCount: 2`, and visible cars with `appearanceSoundPlayed: true`. Only console warning remains the pre-existing Tailwind CDN production warning.

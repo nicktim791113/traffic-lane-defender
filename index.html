@@ -300,6 +300,8 @@
 
     let audioCtx = null;
     let audioEnabled = true;
+    let audioUnlocked = false;
+    let vehicleAppearanceSoundCount = 0;
 
     function readBestScore() {
       try {
@@ -369,6 +371,23 @@
       if (audioCtx && audioCtx.state === 'suspended') {
         audioCtx.resume();
       }
+    }
+
+    function unlockAudioForGesture() {
+      if (!audioEnabled) return;
+      ensureAudioContext();
+      if (!audioCtx || audioUnlocked) return;
+
+      const now = audioCtx.currentTime;
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.exponentialRampToValueAtTime(0.00001, now + 0.03);
+      osc.frequency.setValueAtTime(440, now);
+      osc.connect(gain).connect(audioCtx.destination);
+      osc.start(now);
+      osc.stop(now + 0.04);
+      audioUnlocked = true;
     }
 
     function createAudioOutput(pan = 0, volume = 0.78) {
@@ -447,76 +466,77 @@
 
       const now = audioCtx.currentTime;
       const pan = direction > 0 ? -0.72 : 0.72;
-      const output = createAudioOutput(pan, 0.74);
+      const output = createAudioOutput(pan, 0.96);
       const name = sprite.name;
       const finish = (delayMs = 620) => releaseAudioOutput(output, delayMs);
+      vehicleAppearanceSoundCount++;
 
       if (name === 'yellow-taxi') {
-        scheduleTone(output, 'square', 820, 820, now, 0.08, 0.1);
-        scheduleTone(output, 'square', 1100, 1100, now + 0.09, 0.08, 0.08);
-        scheduleTone(output, 'triangle', 360, 520, now, 0.2, 0.07);
+        scheduleTone(output, 'square', 820, 820, now, 0.09, 0.16);
+        scheduleTone(output, 'square', 1100, 1100, now + 0.1, 0.09, 0.14);
+        scheduleTone(output, 'triangle', 360, 520, now, 0.24, 0.11);
         finish(420);
         return;
       }
 
       if (name === 'blue-bus') {
-        scheduleTone(output, 'sine', 196, 174, now, 0.34, 0.18);
-        scheduleTone(output, 'triangle', 98, 92, now, 0.38, 0.09);
-        scheduleNoiseBurst(output, now, 0.12, 0.035, 260);
+        scheduleTone(output, 'sine', 196, 174, now, 0.38, 0.24);
+        scheduleTone(output, 'triangle', 98, 92, now, 0.42, 0.14);
+        scheduleNoiseBurst(output, now, 0.14, 0.055, 260);
         finish(620);
         return;
       }
 
       if (name === 'tow-truck') {
-        scheduleTone(output, 'square', 580, 580, now, 0.08, 0.08);
-        scheduleTone(output, 'square', 760, 760, now + 0.1, 0.08, 0.075);
-        scheduleTone(output, 'sawtooth', 155, 120, now, 0.24, 0.08);
+        scheduleTone(output, 'square', 580, 580, now, 0.09, 0.13);
+        scheduleTone(output, 'square', 760, 760, now + 0.11, 0.09, 0.12);
+        scheduleTone(output, 'sawtooth', 155, 120, now, 0.28, 0.12);
         finish(480);
         return;
       }
 
       if (name === 'road-roller') {
-        scheduleTone(output, 'sawtooth', 76, 58, now, 0.36, 0.16);
-        scheduleTone(output, 'triangle', 112, 92, now + 0.04, 0.28, 0.08);
-        scheduleNoiseBurst(output, now, 0.28, 0.11, 180);
+        scheduleTone(output, 'sawtooth', 76, 58, now, 0.42, 0.23);
+        scheduleTone(output, 'triangle', 112, 92, now + 0.04, 0.32, 0.13);
+        scheduleNoiseBurst(output, now, 0.32, 0.16, 180);
         finish(650);
         return;
       }
 
       if (name === 'mobile-crane') {
-        scheduleTone(output, 'sawtooth', 92, 70, now, 0.32, 0.13);
-        scheduleTone(output, 'square', 680, 680, now + 0.06, 0.06, 0.055);
-        scheduleTone(output, 'square', 840, 840, now + 0.16, 0.06, 0.05);
-        scheduleNoiseBurst(output, now, 0.2, 0.08, 260);
+        scheduleTone(output, 'sawtooth', 92, 70, now, 0.36, 0.2);
+        scheduleTone(output, 'square', 680, 680, now + 0.06, 0.07, 0.09);
+        scheduleTone(output, 'square', 840, 840, now + 0.17, 0.07, 0.085);
+        scheduleNoiseBurst(output, now, 0.23, 0.12, 260);
         finish(560);
         return;
       }
 
       if (name === 'cement-mixer') {
-        scheduleTone(output, 'sawtooth', 88, 66, now, 0.31, 0.13);
-        scheduleTone(output, 'triangle', 150, 118, now + 0.03, 0.34, 0.08);
-        scheduleNoiseBurst(output, now, 0.24, 0.08, 230);
+        scheduleTone(output, 'sawtooth', 88, 66, now, 0.36, 0.2);
+        scheduleTone(output, 'triangle', 150, 118, now + 0.03, 0.38, 0.13);
+        scheduleNoiseBurst(output, now, 0.28, 0.13, 230);
         finish(620);
         return;
       }
 
       if (name === 'dump-truck') {
-        scheduleTone(output, 'sawtooth', 104, 78, now, 0.3, 0.15);
-        scheduleNoiseBurst(output, now, 0.22, 0.095, 240);
+        scheduleTone(output, 'sawtooth', 104, 78, now, 0.35, 0.22);
+        scheduleNoiseBurst(output, now, 0.26, 0.15, 240);
         finish(560);
         return;
       }
 
       if (sprite.vehicleClass === 'van') {
-        scheduleTone(output, 'sawtooth', 280, 230, now, 0.22, 0.11);
-        scheduleTone(output, 'triangle', 420, 520, now + 0.04, 0.14, 0.05);
+        scheduleTone(output, 'sawtooth', 280, 230, now, 0.25, 0.16);
+        scheduleTone(output, 'triangle', 420, 520, now + 0.04, 0.16, 0.085);
         finish(420);
         return;
       }
 
-      scheduleTone(output, 'triangle', 520, 760, now, 0.16, 0.09);
-      scheduleTone(output, 'sawtooth', 300, 240, now, 0.18, 0.055);
-      scheduleNoiseBurst(output, now, 0.08, 0.035, 1200, 'highpass');
+      scheduleTone(output, 'triangle', 520, 760, now, 0.18, 0.14);
+      scheduleTone(output, 'sawtooth', 300, 240, now, 0.2, 0.09);
+      scheduleNoiseBurst(output, now, 0.09, 0.055, 1200, 'highpass');
       finish(380);
     }
 
@@ -627,7 +647,7 @@
       audioEnabled = !audioEnabled;
       if (audioEnabled) {
         muteBtn.textContent = '🔊 聲音：開啟';
-        ensureAudioContext();
+        unlockAudioForGesture();
       } else {
         muteBtn.textContent = '🔇 聲音：關閉';
       }
@@ -672,6 +692,7 @@
         this.baseSpeed = (132 + Math.random() * 58) * this.sprite.speedBias;
         this.laneChangeProgress = 0;
         this.isChangingLane = false;
+        this.hasPlayedAppearanceSound = false;
         this.resize();
         this.x = direction > 0 ? -this.width - 24 : viewWidth + 24;
       }
@@ -685,6 +706,7 @@
       update(dt) {
         const speed = this.baseSpeed * baseSpeedMultiplier * difficultyScale;
         this.x += this.direction * speed * dt;
+        this.playAppearanceSoundIfVisible();
 
         if (this.isChangingLane) {
           const laneChangeSpeed = 7.8;
@@ -698,6 +720,18 @@
             this.startY = this.targetY;
           }
         }
+      }
+
+      playAppearanceSoundIfVisible() {
+        if (this.hasPlayedAppearanceSound) return;
+        const frontEdge = this.direction > 0 ? this.x + this.width : this.x;
+        const isEnteringView = this.direction > 0
+          ? frontEdge >= 10
+          : frontEdge <= viewWidth - 10;
+        if (!isEnteringView) return;
+
+        this.hasPlayedAppearanceSound = true;
+        playVehicleSpawnSound(this.sprite, this.direction);
       }
 
       requestLaneChange(offset) {
@@ -1132,7 +1166,6 @@
       const candidateSprite = sprite || pickVehicleSprite();
       if (!canSpawnCar(laneIndex, direction, ignoreQueuedWarning, candidateSprite)) return false;
       cars.push(new Car(laneIndex, direction, candidateSprite));
-      playVehicleSpawnSound(candidateSprite, direction);
       return true;
     }
 
@@ -1301,6 +1334,7 @@
       activeCar = null;
       gameTime = 0;
       gameEndReason = null;
+      vehicleAppearanceSoundCount = 0;
       screenShakeTime = 0;
       screenShakeIntensity = 0;
       currentStage = '入門';
@@ -1310,7 +1344,7 @@
     }
 
     function startGame() {
-      ensureAudioContext();
+      unlockAudioForGesture();
       resetGame();
       baseSpeedMultiplier = parseFloat(speedSlider.value) || 1.0;
       menuOverlay.classList.add('hidden');
@@ -1428,7 +1462,7 @@
     }
 
     canvas.addEventListener('mousedown', function (e) {
-      ensureAudioContext();
+      unlockAudioForGesture();
       handlePointerDown('mouse', e.clientX, e.clientY);
     });
 
@@ -1441,7 +1475,7 @@
     });
 
     canvas.addEventListener('touchstart', function (e) {
-      ensureAudioContext();
+      unlockAudioForGesture();
       e.preventDefault();
       const touch = e.changedTouches[0];
       if (!touch) return;
@@ -1685,6 +1719,9 @@
         endReason: gameEndReason,
         endButtonVisible: !endGameBtn.classList.contains('hidden'),
         audioEnabled,
+        audioUnlocked,
+        audioState: audioCtx ? audioCtx.state : 'unavailable',
+        vehicleAppearanceSoundCount,
         score,
         bestScore,
         combo,
@@ -1700,6 +1737,7 @@
           direction: car.direction > 0 ? 'right' : 'left',
           x: Math.round(car.x),
           y: Math.round(car.y),
+          appearanceSoundPlayed: car.hasPlayedAppearanceSound,
           changingLane: car.isChangingLane
         })),
         warnings: spawnWarnings.map(w => ({
