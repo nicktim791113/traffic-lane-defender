@@ -51,3 +51,14 @@ Original prompt: 請繼續接著改善其他的可以改善的地方 剛剛你�
 - Fixed by unlocking Web Audio with a silent oscillator on start/touch/click, delaying each vehicle sound until its front edge first enters the visible canvas, and raising the appearance stinger levels.
 - Added `audioUnlocked`, `audioState`, `vehicleAppearanceSoundCount`, and per-car `appearanceSoundPlayed` to `render_game_to_text` for verification.
 - Final checks: JS syntax passed; develop-web-game Playwright client passed over local HTTP; custom Playwright run advanced gameplay until visible vehicles appeared and confirmed `audioState: "running"`, `audioUnlocked: true`, `vehicleAppearanceSoundCount: 2`, and visible cars with `appearanceSoundPlayed: true`. Only console warning remains the pre-existing Tailwind CDN production warning.
+
+## 2026-05-11 Browser Audio Hardening Pass
+
+- User still could not hear vehicle sounds and asked to open the software to verify.
+- Added a menu `測試車種音效` button that plays a seven-sound vehicle sample sequence before starting the game.
+- Hardened Web Audio unlock/resume logic:
+  - `audioUnlocked` is only true after `AudioContext.state === "running"`;
+  - vehicle appearance sounds return success/failure;
+  - cars retry their appearance sound on following frames until the context is actually running;
+  - appearance sound output is louder.
+- Ran JS syntax check, develop-web-game Playwright client, custom headless browser audio-state test, and a headed Chromium run that opened the game window, clicked the sound test, started gameplay, and confirmed `audioState: "running"` with three visible cars whose `appearanceSoundPlayed` flags were true.

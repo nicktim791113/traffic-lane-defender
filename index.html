@@ -167,6 +167,11 @@
                   class="w-full py-2.5 rounded-lg bg-emerald-400 hover:bg-emerald-300 text-slate-950 font-semibold text-sm sm:text-base transition">
             ▶️ 開始遊戲
           </button>
+          <button id="soundTestBtn"
+                  type="button"
+                  class="w-full mt-2 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-100 text-xs sm:text-sm transition">
+            🔊 測試車種音效
+          </button>
         </div>
       </div>
 
@@ -233,6 +238,7 @@
     const speedSlider = document.getElementById('speedSlider');
     const speedDisplay = document.getElementById('speedDisplay');
     const startBtn = document.getElementById('startBtn');
+    const soundTestBtn = document.getElementById('soundTestBtn');
     const restartBtn = document.getElementById('restartBtn');
     const backToMenuBtn = document.getElementById('backToMenuBtn');
     const muteBtn = document.getElementById('muteBtn');
@@ -301,6 +307,7 @@
     let audioCtx = null;
     let audioEnabled = true;
     let audioUnlocked = false;
+    let audioResumePromise = null;
     let vehicleAppearanceSoundCount = 0;
 
     function readBestScore() {
@@ -368,26 +375,46 @@
           audioCtx = new AudioContext();
         }
       }
-      if (audioCtx && audioCtx.state === 'suspended') {
-        audioCtx.resume();
-      }
+      return audioCtx;
     }
 
-    function unlockAudioForGesture() {
-      if (!audioEnabled) return;
+    function resumeAudioContext() {
       ensureAudioContext();
-      if (!audioCtx || audioUnlocked) return;
+      if (!audioCtx) return Promise.resolve(false);
+      if (audioCtx.state === 'running') {
+        audioUnlocked = true;
+        return Promise.resolve(true);
+      }
+      if (audioResumePromise) return audioResumePromise;
 
-      const now = audioCtx.currentTime;
-      const osc = audioCtx.createOscillator();
-      const gain = audioCtx.createGain();
-      gain.gain.setValueAtTime(0.0001, now);
-      gain.gain.exponentialRampToValueAtTime(0.00001, now + 0.03);
-      osc.frequency.setValueAtTime(440, now);
-      osc.connect(gain).connect(audioCtx.destination);
-      osc.start(now);
-      osc.stop(now + 0.04);
-      audioUnlocked = true;
+      audioResumePromise = audioCtx.resume()
+        .then(() => {
+          audioUnlocked = audioCtx.state === 'running';
+          audioResumePromise = null;
+          return audioUnlocked;
+        })
+        .catch(() => {
+          audioResumePromise = null;
+          return false;
+        });
+      return audioResumePromise;
+    }
+
+    function unlockAudioForGesture(playReadyCue = false) {
+      if (!audioEnabled) return Promise.resolve(false);
+      ensureAudioContext();
+      if (!audioCtx) return Promise.resolve(false);
+
+      return resumeAudioContext().then((isReady) => {
+        if (!isReady) return false;
+        if (!playReadyCue) return true;
+
+        const now = audioCtx.currentTime;
+        const output = createAudioOutput(0, 0.5);
+        scheduleTone(output, 'triangle', 520, 760, now, 0.09, 0.08);
+        releaseAudioOutput(output, 260);
+        return true;
+      });
     }
 
     function createAudioOutput(pan = 0, volume = 0.78) {
@@ -460,13 +487,17 @@
     }
 
     function playVehicleSpawnSound(sprite, direction) {
-      if (!audioEnabled) return;
+      if (!audioEnabled) return true;
       ensureAudioContext();
-      if (!audioCtx) return;
+      if (!audioCtx) return true;
+      if (audioCtx.state !== 'running') {
+        resumeAudioContext();
+        return false;
+      }
 
       const now = audioCtx.currentTime;
       const pan = direction > 0 ? -0.72 : 0.72;
-      const output = createAudioOutput(pan, 0.96);
+      const output = createAudioOutput(pan, 1.15);
       const name = sprite.name;
       const finish = (delayMs = 620) => releaseAudioOutput(output, delayMs);
       vehicleAppearanceSoundCount++;
@@ -476,7 +507,7 @@
         scheduleTone(output, 'square', 1100, 1100, now + 0.1, 0.09, 0.14);
         scheduleTone(output, 'triangle', 360, 520, now, 0.24, 0.11);
         finish(420);
-        return;
+        return true;
       }
 
       if (name === 'blue-bus') {
@@ -484,7 +515,7 @@
         scheduleTone(output, 'triangle', 98, 92, now, 0.42, 0.14);
         scheduleNoiseBurst(output, now, 0.14, 0.055, 260);
         finish(620);
-        return;
+        return true;
       }
 
       if (name === 'tow-truck') {
@@ -492,7 +523,7 @@
         scheduleTone(output, 'square', 760, 760, now + 0.11, 0.09, 0.12);
         scheduleTone(output, 'sawtooth', 155, 120, now, 0.28, 0.12);
         finish(480);
-        return;
+        return true;
       }
 
       if (name === 'road-roller') {
@@ -500,7 +531,7 @@
         scheduleTone(output, 'triangle', 112, 92, now + 0.04, 0.32, 0.13);
         scheduleNoiseBurst(output, now, 0.32, 0.16, 180);
         finish(650);
-        return;
+        return true;
       }
 
       if (name === 'mobile-crane') {
@@ -509,7 +540,7 @@
         scheduleTone(output, 'square', 840, 840, now + 0.17, 0.07, 0.085);
         scheduleNoiseBurst(output, now, 0.23, 0.12, 260);
         finish(560);
-        return;
+        return true;
       }
 
       if (name === 'cement-mixer') {
@@ -517,27 +548,28 @@
         scheduleTone(output, 'triangle', 150, 118, now + 0.03, 0.38, 0.13);
         scheduleNoiseBurst(output, now, 0.28, 0.13, 230);
         finish(620);
-        return;
+        return true;
       }
 
       if (name === 'dump-truck') {
         scheduleTone(output, 'sawtooth', 104, 78, now, 0.35, 0.22);
         scheduleNoiseBurst(output, now, 0.26, 0.15, 240);
         finish(560);
-        return;
+        return true;
       }
 
       if (sprite.vehicleClass === 'van') {
         scheduleTone(output, 'sawtooth', 280, 230, now, 0.25, 0.16);
         scheduleTone(output, 'triangle', 420, 520, now + 0.04, 0.16, 0.085);
         finish(420);
-        return;
+        return true;
       }
 
       scheduleTone(output, 'triangle', 520, 760, now, 0.18, 0.14);
       scheduleTone(output, 'sawtooth', 300, 240, now, 0.2, 0.09);
       scheduleNoiseBurst(output, now, 0.09, 0.055, 1200, 'highpass');
       finish(380);
+      return true;
     }
 
     function playManualEndSound() {
@@ -550,6 +582,42 @@
       scheduleTone(output, 'triangle', 420, 280, now, 0.16, 0.1);
       scheduleTone(output, 'sine', 260, 196, now + 0.11, 0.18, 0.075);
       releaseAudioOutput(output, 480);
+    }
+
+    function playVehicleSoundTest() {
+      audioEnabled = true;
+      muteBtn.textContent = '🔊 聲音：開啟';
+      soundTestBtn.disabled = true;
+      soundTestBtn.textContent = '🔊 播放車種音效中...';
+
+      unlockAudioForGesture(false).then((isReady) => {
+        if (!isReady) {
+          soundTestBtn.disabled = false;
+          soundTestBtn.textContent = '🔊 測試車種音效';
+          return;
+        }
+
+        const sampleNames = [
+          'red-sedan',
+          'yellow-taxi',
+          'blue-bus',
+          'orange-van',
+          'tow-truck',
+          'dump-truck',
+          'road-roller'
+        ];
+        sampleNames.forEach((name, index) => {
+          window.setTimeout(() => {
+            const sprite = VEHICLE_SPRITES.find(item => item.name === name) || VEHICLE_SPRITES[0];
+            playVehicleSpawnSound(sprite, index % 2 === 0 ? 1 : -1);
+          }, index * 520);
+        });
+
+        window.setTimeout(() => {
+          soundTestBtn.disabled = false;
+          soundTestBtn.textContent = '🔊 測試車種音效';
+        }, sampleNames.length * 520 + 360);
+      });
     }
 
     function playSwipeSound() {
@@ -730,8 +798,7 @@
           : frontEdge <= viewWidth - 10;
         if (!isEnteringView) return;
 
-        this.hasPlayedAppearanceSound = true;
-        playVehicleSpawnSound(this.sprite, this.direction);
+        this.hasPlayedAppearanceSound = playVehicleSpawnSound(this.sprite, this.direction);
       }
 
       requestLaneChange(offset) {
@@ -1344,7 +1411,7 @@
     }
 
     function startGame() {
-      unlockAudioForGesture();
+      unlockAudioForGesture(true);
       resetGame();
       baseSpeedMultiplier = parseFloat(speedSlider.value) || 1.0;
       menuOverlay.classList.add('hidden');
@@ -1365,6 +1432,7 @@
     });
 
     startBtn.addEventListener('click', startGame);
+    soundTestBtn.addEventListener('click', playVehicleSoundTest);
     restartBtn.addEventListener('click', startGame);
     backToMenuBtn.addEventListener('click', backToMenu);
     endGameBtn.addEventListener('click', endCurrentGame);
