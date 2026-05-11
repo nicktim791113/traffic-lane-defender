@@ -106,3 +106,19 @@ Original prompt: 請繼續接著改善其他的可以改善的地方 剛剛你�
 - Added a looping background music audio element that starts when a run begins, pauses/resumes with the existing sound toggle, and stops/resets when the run is manually ended, crashed, or returned to the menu.
 - Added `backgroundMusic` playback diagnostics to `render_game_to_text` for browser verification.
 - Verification: JS syntax passed; develop-web-game Playwright client passed over local HTTP; focused Playwright check confirmed start plays the MP3, mute pauses it, unmute resumes it, and the end button stops/resets it. Visual screenshot check passed.
+
+## 2026-05-11 Spectral Vehicle Sound Resynthesis
+
+- User still disliked the current vehicle sounds and provided target synthesis recipes based on mixed frequencies, waveforms, noise, filters, distortion, LFO motion, and metallic impacts.
+- Rebuilt `scripts/generate_vehicle_sounds.js` around fixed 2.00 second WAV assets for all 10 vehicle rows:
+  - small car/hatchback: bright sawtooth vroom-vroom engine sweeps with light high-frequency road texture,
+  - taxi: light engine sweeps plus high sine beep-beep pairs,
+  - bus: low square-wave diesel, deep beating horns, and filtered white-noise air brake hiss,
+  - van: smoother mid-low brum-brum sweeps with reduced high-frequency grit,
+  - tow truck: diesel bed, pulse-wave warning beeps, and generated metal chain/clank impacts,
+  - dump truck: sub-bass rumble, distorted diesel, and low beating honk-honk,
+  - cement mixer: diesel plus LFO-style wub-wub low-pass motion and slosh noise,
+  - road roller: sub-bass rolling bed with amplitude-modulated repeated thumps,
+  - mobile crane: hydraulic glide/whine, warning beeps, and metallic clanks.
+- Added a vehicle sound asset version query string to avoid stale browser-cached WAV files and increased the in-menu sound-test spacing to let each 2 second file be heard clearly.
+- Verification so far: generated 10 WAVs at 44.1kHz/16-bit mono, exactly 2.00s each; JS syntax passed; develop-web-game Playwright client passed over local HTTP; focused browser check decoded 10/10 WAV buffers and played all 10 via the sound-test button with no load failures.

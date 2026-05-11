@@ -316,6 +316,8 @@
     const vehicleSoundBuffers = new Map();
     let vehicleAppearanceSoundCount = 0;
     let lastVehicleSoundTag = null;
+    const VEHICLE_SOUND_ASSET_VERSION = '20260511-spectral-v2';
+    const VEHICLE_SOUND_TEST_GAP_MS = 2350;
     const backgroundMusic = new Audio('assets/music/toy-car-battle.mp3');
     backgroundMusic.loop = true;
     backgroundMusic.preload = 'auto';
@@ -476,7 +478,7 @@
     }
 
     function getVehicleSoundPath(sprite) {
-      return `assets/sounds/${sprite.name}.wav`;
+      return `assets/sounds/${sprite.name}.wav?v=${VEHICLE_SOUND_ASSET_VERSION}`;
     }
 
     function loadVehicleSoundBuffers() {
@@ -816,13 +818,13 @@
           window.setTimeout(() => {
             const sprite = VEHICLE_SPRITES.find(item => item.name === name) || VEHICLE_SPRITES[0];
             playVehicleSpawnSound(sprite, index % 2 === 0 ? 1 : -1);
-          }, index * 760);
+          }, index * VEHICLE_SOUND_TEST_GAP_MS);
         });
 
         window.setTimeout(() => {
           soundTestBtn.disabled = false;
           soundTestBtn.textContent = '🔊 測試車種音效';
-        }, sampleNames.length * 760 + 520);
+        }, sampleNames.length * VEHICLE_SOUND_TEST_GAP_MS + 520);
       });
     }
 
