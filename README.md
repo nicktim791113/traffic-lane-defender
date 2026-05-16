@@ -45,6 +45,11 @@ GitHub Pages 建議設定：
 - Branch: `main`
 - Folder: `/ (root)`
 
+## Audio Controls
+
+- Use the `音量` button to adjust game sound effects and background music separately.
+- Volume settings are saved in the browser and reused the next time the game opens.
+
 ## PWA
 
 This project is configured as an installable Progressive Web App.

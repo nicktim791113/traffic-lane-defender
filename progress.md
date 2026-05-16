@@ -151,3 +151,14 @@ Original prompt: 請繼續接著改善其他的可以改善的地方 剛剛你�
 - Updated `README.md` with a short PWA deployment/use note.
 - Verification: `node --check service-worker.js`, manifest JSON parse, and inline script parse passed. Local HTTP server at `http://127.0.0.1:4173/` registered the service worker, controlled the page, cached 32 assets, and reloaded offline with the start button, canvas, and `render_game_to_text` available. The develop-web-game Playwright client also reached `playing` state with no error files generated.
 - Residual note: the existing Tailwind CDN production warning still appears online, but the service worker caches the CDN script so the PWA shell can render offline after installation/first load.
+
+## 2026-05-16 Audio Volume Controls
+
+- User requested adjustable game sound effect and background music volume, followed by direct GitHub push.
+- Added a header `音量` button that opens an in-game audio panel with separate `遊戲音效` and `背景音樂` sliders.
+- Persisted both volume settings in `localStorage` so they survive reloads/PWA launches.
+- Routed Web Audio sound effects through the existing compressor/master gain path, including swipe, pass, near-miss, crash, vehicle, and ready/end cues.
+- Kept the existing mute button as a global on/off control while allowing the sliders to preserve the preferred loudness levels.
+- Added volume diagnostics to `render_game_to_text` for browser verification.
+- Fixed a default-setting edge case where missing `localStorage` volume keys could otherwise be interpreted as zero.
+- Verification: inline script syntax passed; develop-web-game Playwright smoke reached `playing` with default `sfx: 1` and `music: 0.24`; focused Playwright check confirmed slider labels, `localStorage` persistence, `backgroundMusic.volume: 0.6` after setting music to 60%, 10/10 vehicle sound buffers loaded, and no console/page errors.

@@ -102,6 +102,13 @@
         <div class="hidden sm:block text-right text-xs text-amber-100/85">
           最高分 <span id="bestScoreHeader" class="font-mono font-bold text-amber-300">0</span>
         </div>
+        <button id="audioPanelBtn"
+          type="button"
+          aria-controls="audioPanel"
+          aria-expanded="false"
+          class="text-xs sm:text-sm px-3 py-1.5 rounded-full border border-cyan-300/30 bg-cyan-950/70 hover:bg-cyan-900 transition">
+          音量
+        </button>
         <button id="muteBtn"
           class="text-xs sm:text-sm px-3 py-1.5 rounded-full border border-emerald-300/30 bg-emerald-950/70 hover:bg-emerald-900 transition">
           🔊 聲音：開啟
@@ -139,6 +146,48 @@
         <span aria-hidden="true" class="text-red-200 leading-none">■</span>
         <span>結束</span>
       </button>
+
+      <div id="audioPanel"
+           class="hidden absolute top-12 right-2 z-20 modal-panel px-3 py-3 text-xs sm:text-sm"
+           style="width:min(286px,calc(100% - 1rem));">
+        <div class="mb-3 flex items-center justify-between gap-2">
+          <div class="font-semibold text-slate-100">音量設定</div>
+          <button id="audioPanelCloseBtn"
+                  type="button"
+                  aria-label="關閉音量設定"
+                  class="grid h-7 w-7 place-items-center rounded-full border border-white/10 bg-white/5 text-slate-200 transition hover:bg-white/10">
+            &times;
+          </button>
+        </div>
+        <div class="space-y-3">
+          <div>
+            <label for="sfxVolumeSlider" class="mb-1.5 flex items-center justify-between gap-2">
+              <span class="text-slate-200">遊戲音效</span>
+              <span id="sfxVolumeDisplay" class="font-mono text-cyan-200">100%</span>
+            </label>
+            <input id="sfxVolumeSlider"
+                   type="range"
+                   min="0"
+                   max="100"
+                   step="5"
+                   value="100"
+                   class="w-full accent-cyan-300" />
+          </div>
+          <div>
+            <label for="musicVolumeSlider" class="mb-1.5 flex items-center justify-between gap-2">
+              <span class="text-slate-200">背景音樂</span>
+              <span id="musicVolumeDisplay" class="font-mono text-amber-200">24%</span>
+            </label>
+            <input id="musicVolumeSlider"
+                   type="range"
+                   min="0"
+                   max="100"
+                   step="5"
+                   value="24"
+                   class="w-full accent-amber-300" />
+          </div>
+        </div>
+      </div>
 
       <div id="menuOverlay"
            class="absolute inset-0 flex flex-col items-center justify-center bg-black/64 backdrop-blur-sm px-3">
@@ -250,11 +299,22 @@
     const soundTestBtn = document.getElementById('soundTestBtn');
     const restartBtn = document.getElementById('restartBtn');
     const backToMenuBtn = document.getElementById('backToMenuBtn');
+    const audioPanelBtn = document.getElementById('audioPanelBtn');
+    const audioPanel = document.getElementById('audioPanel');
+    const audioPanelCloseBtn = document.getElementById('audioPanelCloseBtn');
+    const sfxVolumeSlider = document.getElementById('sfxVolumeSlider');
+    const sfxVolumeDisplay = document.getElementById('sfxVolumeDisplay');
+    const musicVolumeSlider = document.getElementById('musicVolumeSlider');
+    const musicVolumeDisplay = document.getElementById('musicVolumeDisplay');
     const muteBtn = document.getElementById('muteBtn');
     const endGameBtn = document.getElementById('endGameBtn');
 
     const LANES = 3;
     const STORAGE_KEY = 'trafficLaneDefenderBestScore';
+    const SFX_VOLUME_KEY = 'trafficLaneDefenderSfxVolume';
+    const MUSIC_VOLUME_KEY = 'trafficLaneDefenderMusicVolume';
+    const DEFAULT_SFX_VOLUME = 1.0;
+    const DEFAULT_MUSIC_VOLUME = 0.24;
     const VEHICLE_FRAME_WIDTH = 786;
     const VEHICLE_FRAME_HEIGHT = 321;
     const VEHICLE_FRAME_COUNT = 4;
@@ -316,6 +376,8 @@
     let audioCtx = null;
     let audioEnabled = true;
     let audioUnlocked = false;
+    let sfxVolume = readVolumeSetting(SFX_VOLUME_KEY, DEFAULT_SFX_VOLUME);
+    let musicVolume = readVolumeSetting(MUSIC_VOLUME_KEY, DEFAULT_MUSIC_VOLUME);
     let audioResumePromise = null;
     let audioCompressor = null;
     let audioMasterGain = null;
@@ -330,7 +392,7 @@
     const backgroundMusic = new Audio('assets/music/toy-car-battle.mp3');
     backgroundMusic.loop = true;
     backgroundMusic.preload = 'auto';
-    backgroundMusic.volume = 0.24;
+    backgroundMusic.volume = musicVolume;
     let backgroundMusicStarted = false;
     let backgroundMusicError = null;
 
@@ -348,6 +410,70 @@
       } catch (error) {
         // Local storage can be unavailable in strict privacy contexts.
       }
+    }
+
+    function readVolumeSetting(key, fallback) {
+      try {
+        const rawValue = window.localStorage.getItem(key);
+        if (rawValue === null) return fallback;
+        const stored = Number(rawValue);
+        return Number.isFinite(stored) ? clamp(stored, 0, 1) : fallback;
+      } catch (error) {
+        return fallback;
+      }
+    }
+
+    function writeVolumeSetting(key, value) {
+      try {
+        window.localStorage.setItem(key, String(clamp(value, 0, 1)));
+      } catch (error) {
+        // Local storage can be unavailable in strict privacy contexts.
+      }
+    }
+
+    function formatVolume(value) {
+      return `${Math.round(clamp(value, 0, 1) * 100)}%`;
+    }
+
+    function applySfxVolume() {
+      if (!audioMasterGain || !audioCtx) return;
+      const nextGain = 0.9 * clamp(sfxVolume, 0, 1);
+      audioMasterGain.gain.setTargetAtTime(nextGain, audioCtx.currentTime, 0.025);
+    }
+
+    function applyMusicVolume() {
+      backgroundMusic.volume = clamp(musicVolume, 0, 1);
+    }
+
+    function updateMuteButton() {
+      muteBtn.textContent = audioEnabled ? '🔊 聲音：開啟' : '🔇 聲音：關閉';
+    }
+
+    function updateVolumeControls() {
+      sfxVolumeSlider.value = String(Math.round(clamp(sfxVolume, 0, 1) * 100));
+      musicVolumeSlider.value = String(Math.round(clamp(musicVolume, 0, 1) * 100));
+      sfxVolumeDisplay.textContent = formatVolume(sfxVolume);
+      musicVolumeDisplay.textContent = formatVolume(musicVolume);
+      applyMusicVolume();
+      applySfxVolume();
+      updateMuteButton();
+    }
+
+    function setSfxVolume(value) {
+      sfxVolume = clamp(value, 0, 1);
+      writeVolumeSetting(SFX_VOLUME_KEY, sfxVolume);
+      updateVolumeControls();
+    }
+
+    function setMusicVolume(value) {
+      musicVolume = clamp(value, 0, 1);
+      writeVolumeSetting(MUSIC_VOLUME_KEY, musicVolume);
+      updateVolumeControls();
+    }
+
+    function setAudioPanelVisible(isVisible) {
+      audioPanel.classList.toggle('hidden', !isVisible);
+      audioPanelBtn.setAttribute('aria-expanded', String(isVisible));
     }
 
     function updateHud() {
@@ -470,9 +596,10 @@
         audioCompressor.release.setValueAtTime(0.18, audioCtx.currentTime);
 
         audioMasterGain = audioCtx.createGain();
-        audioMasterGain.gain.setValueAtTime(0.9, audioCtx.currentTime);
+        audioMasterGain.gain.setValueAtTime(0.9 * clamp(sfxVolume, 0, 1), audioCtx.currentTime);
         audioCompressor.connect(audioMasterGain).connect(audioCtx.destination);
       }
+      applySfxVolume();
       return audioCompressor;
     }
 
@@ -769,7 +896,7 @@
           // Some browsers may block seeking before metadata is loaded.
         }
       }
-      backgroundMusic.volume = 0.24;
+      applyMusicVolume();
       const playPromise = backgroundMusic.play();
       if (playPromise && typeof playPromise.then === 'function') {
         playPromise
@@ -804,7 +931,7 @@
 
     function playVehicleSoundTest() {
       audioEnabled = true;
-      muteBtn.textContent = '🔊 聲音：開啟';
+      updateMuteButton();
       soundTestBtn.disabled = true;
       soundTestBtn.textContent = '🔊 播放車種音效中...';
 
@@ -854,7 +981,7 @@
       gain.gain.linearRampToValueAtTime(0.2, audioCtx.currentTime + 0.02);
       gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
 
-      osc.connect(gain).connect(audioCtx.destination);
+      osc.connect(gain).connect(getAudioDestination());
       osc.start();
       osc.stop(audioCtx.currentTime + duration);
     }
@@ -876,7 +1003,7 @@
       gain.gain.linearRampToValueAtTime(0.24, audioCtx.currentTime + 0.01);
       gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
 
-      osc.connect(gain).connect(audioCtx.destination);
+      osc.connect(gain).connect(getAudioDestination());
       osc.start();
       osc.stop(audioCtx.currentTime + duration);
     }
@@ -898,7 +1025,7 @@
       gain.gain.linearRampToValueAtTime(0.16, audioCtx.currentTime + 0.01);
       gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
 
-      osc.connect(gain).connect(audioCtx.destination);
+      osc.connect(gain).connect(getAudioDestination());
       osc.start();
       osc.stop(audioCtx.currentTime + duration);
     }
@@ -923,7 +1050,7 @@
       gain.gain.setValueAtTime(0.62, audioCtx.currentTime);
       gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
 
-      noise.connect(gain).connect(audioCtx.destination);
+      noise.connect(gain).connect(getAudioDestination());
       noise.start();
       noise.stop(audioCtx.currentTime + duration);
     }
@@ -931,13 +1058,13 @@
     muteBtn.addEventListener('click', function () {
       audioEnabled = !audioEnabled;
       if (audioEnabled) {
-        muteBtn.textContent = '🔊 聲音：開啟';
+        updateMuteButton();
         unlockAudioForGesture();
         if (gameState === 'playing') {
           startBackgroundMusic(false);
         }
       } else {
-        muteBtn.textContent = '🔇 聲音：關閉';
+        updateMuteButton();
         stopBackgroundMusic(false);
       }
     });
@@ -1657,6 +1784,28 @@
       speedDisplay.textContent = parseFloat(speedSlider.value).toFixed(1) + 'x';
     });
 
+    audioPanelBtn.addEventListener('click', function () {
+      setAudioPanelVisible(audioPanel.classList.contains('hidden'));
+    });
+
+    audioPanelCloseBtn.addEventListener('click', function () {
+      setAudioPanelVisible(false);
+    });
+
+    sfxVolumeSlider.addEventListener('input', function () {
+      setSfxVolume((Number(sfxVolumeSlider.value) || 0) / 100);
+    });
+
+    musicVolumeSlider.addEventListener('input', function () {
+      setMusicVolume((Number(musicVolumeSlider.value) || 0) / 100);
+    });
+
+    document.addEventListener('keydown', function (e) {
+      if (e.key === 'Escape') {
+        setAudioPanelVisible(false);
+      }
+    });
+
     startBtn.addEventListener('click', startGame);
     soundTestBtn.addEventListener('click', playVehicleSoundTest);
     restartBtn.addEventListener('click', startGame);
@@ -2015,6 +2164,11 @@
         audioEnabled,
         audioUnlocked,
         audioState: audioCtx ? audioCtx.state : 'unavailable',
+        volume: {
+          sfx: Number(sfxVolume.toFixed(2)),
+          music: Number(musicVolume.toFixed(2)),
+          panelVisible: !audioPanel.classList.contains('hidden')
+        },
         backgroundMusic: {
           src: backgroundMusic.currentSrc || backgroundMusic.src,
           paused: backgroundMusic.paused,
@@ -2079,6 +2233,7 @@
       });
     }
 
+    updateVolumeControls();
     updateHud();
     resizeCanvas();
     requestAnimationFrame(gameLoop);
