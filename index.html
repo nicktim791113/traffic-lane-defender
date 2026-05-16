@@ -4,6 +4,15 @@
   <meta charset="UTF-8" />
   <title>左右來車防撞遊戲 - Traffic Lane Defender</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <meta name="application-name" content="Traffic Lane Defender" />
+  <meta name="theme-color" content="#10130f" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Traffic Lane Defender" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="icon" type="image/png" sizes="192x192" href="./assets/icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="./assets/icons/icon-192.png" />
   <script src="https://cdn.tailwindcss.com"></script>
   <style>
     html,
@@ -2061,6 +2070,14 @@
       }
       render();
     };
+
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('./service-worker.js').catch(function (error) {
+          console.warn('Service worker registration failed:', error);
+        });
+      });
+    }
 
     updateHud();
     resizeCanvas();

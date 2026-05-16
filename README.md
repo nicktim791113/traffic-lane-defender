@@ -44,3 +44,11 @@ GitHub Pages 建議設定：
 - Source: `Deploy from a branch`
 - Branch: `main`
 - Folder: `/ (root)`
+
+## PWA
+
+This project is configured as an installable Progressive Web App.
+
+- `manifest.webmanifest` defines the app name, standalone display mode, theme color, and icons.
+- `service-worker.js` precaches the game shell, vehicle images, sound effects, background music, and manifest/icons for offline play.
+- Open it from GitHub Pages or a local HTTP server, then use the browser's install option to add it to the device.

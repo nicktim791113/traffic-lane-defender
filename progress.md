@@ -140,3 +140,14 @@ Original prompt: 請繼續接著改善其他的可以改善的地方 剛剛你�
   - road-roller -> construction machine motor passing,
   - mobile-crane -> fire truck ladder engine.
 - Bumped `VEHICLE_SOUND_ASSET_VERSION` to `20260512-mixkit-v1` and exposed it through `render_game_to_text` for browser verification.
+
+## 2026-05-16 PWA Mode
+
+- User requested turning the software into PWA mode.
+- Added `manifest.webmanifest` with standalone display mode, theme/background colors, and 192/512 PNG icons.
+- Generated `assets/icons/icon-192.png` and `assets/icons/icon-512.png` for install and maskable icon support.
+- Added `service-worker.js` to precache the app shell, vehicle art, audio assets, music, manifest, icons, and runtime-cache the Tailwind CDN script.
+- Updated `index.html` with PWA meta/link tags and service worker registration.
+- Updated `README.md` with a short PWA deployment/use note.
+- Verification: `node --check service-worker.js`, manifest JSON parse, and inline script parse passed. Local HTTP server at `http://127.0.0.1:4173/` registered the service worker, controlled the page, cached 32 assets, and reloaded offline with the start button, canvas, and `render_game_to_text` available. The develop-web-game Playwright client also reached `playing` state with no error files generated.
+- Residual note: the existing Tailwind CDN production warning still appears online, but the service worker caches the CDN script so the PWA shell can render offline after installation/first load.
