@@ -49,6 +49,21 @@ GitHub Pages 建議設定：
 
 - Use the `音量` button to adjust game sound effects and background music separately.
 - Volume settings are saved in the browser and reused the next time the game opens.
+- Background music uses a 30-second crossfade between the end of the track and the next loop for smoother continuous playback.
+
+## Route Variety
+
+- Each run cycles through a different road layout, including 2, 3, 4, and 5 lane routes.
+- Cars can move from the outside lane onto the roadside shoulder to park and avoid danger, then swipe back toward the road to rejoin traffic.
+- Touch dragging is limited to one lane/shoulder move per swipe, so one flick cannot jump across multiple lanes.
+- The background rotates through five city styles while the run continues.
+
+## Road Obstacles
+
+- The road-obstacle challenge can be enabled from the start menu before beginning a run.
+- Moving vehicles can drop banana peels, trash bags, road barrier barrels, and speed-up oil slicks.
+- Click or tap an obstacle quickly to clear it before traffic reaches it; cleared obstacles award a small point bonus.
+- If left uncleared, banana peels force a lane change, trash bags slow a vehicle, oil slicks speed a vehicle up, and road barrier barrels still end the run with a crash.
 
 ## PWA
 

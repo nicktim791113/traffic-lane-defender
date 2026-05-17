@@ -213,12 +213,25 @@
             </div>
           </div>
 
+          <label class="mb-4 flex items-start gap-3 rounded-lg border border-amber-300/30 bg-amber-300/10 px-3 py-3 text-left">
+            <input id="obstacleChallengeToggle"
+                   type="checkbox"
+                   class="mt-0.5 h-4 w-4 shrink-0 accent-amber-300" />
+            <span class="min-w-0">
+              <span class="block text-sm font-semibold text-amber-100">加入路障挑戰</span>
+              <span class="block text-[11px] leading-relaxed text-slate-300">
+                車輛會丟出不同路障；點擊可清除，漏掉會觸發換道、減速、加速或撞擊。
+              </span>
+            </span>
+          </label>
+
           <div class="grid grid-cols-2 gap-2 text-[11px] sm:text-xs text-slate-300 mb-4">
             <div class="rounded-lg bg-white/5 px-3 py-2">滑鼠/觸控：拖曳換道</div>
             <div class="rounded-lg bg-white/5 px-3 py-2">鍵盤：↑↓ 或 W/S</div>
             <div class="rounded-lg bg-white/5 px-3 py-2">Tab：切換選車</div>
             <div class="rounded-lg bg-white/5 px-3 py-2">F：全螢幕</div>
             <div class="rounded-lg bg-white/5 px-3 py-2">結束：右上角按鈕</div>
+            <div class="rounded-lg bg-white/5 px-3 py-2">路障挑戰：點擊清除</div>
           </div>
 
           <button id="startBtn"
@@ -295,6 +308,7 @@
     const gameOverMessage = document.getElementById('gameOverMessage');
     const speedSlider = document.getElementById('speedSlider');
     const speedDisplay = document.getElementById('speedDisplay');
+    const obstacleChallengeToggle = document.getElementById('obstacleChallengeToggle');
     const startBtn = document.getElementById('startBtn');
     const soundTestBtn = document.getElementById('soundTestBtn');
     const restartBtn = document.getElementById('restartBtn');
@@ -309,12 +323,122 @@
     const muteBtn = document.getElementById('muteBtn');
     const endGameBtn = document.getElementById('endGameBtn');
 
-    const LANES = 3;
+    const DEFAULT_LANE_COUNT = 3;
+    const TOP_SHOULDER_SLOT = -1;
     const STORAGE_KEY = 'trafficLaneDefenderBestScore';
     const SFX_VOLUME_KEY = 'trafficLaneDefenderSfxVolume';
     const MUSIC_VOLUME_KEY = 'trafficLaneDefenderMusicVolume';
     const DEFAULT_SFX_VOLUME = 1.0;
     const DEFAULT_MUSIC_VOLUME = 0.24;
+    const ROUTE_MODES = [
+      { name: '雙線窄路', shortName: '雙線', laneCount: 2, maxCarsOffset: -1, speedModifier: 0.96 },
+      { name: '三線市區', shortName: '三線', laneCount: 3, maxCarsOffset: 0, speedModifier: 1 },
+      { name: '四線大道', shortName: '四線', laneCount: 4, maxCarsOffset: 1, speedModifier: 1.04 },
+      { name: '五線快速路', shortName: '五線', laneCount: 5, maxCarsOffset: 2, speedModifier: 1.08 }
+    ];
+    const CITY_STYLES = [
+      {
+        name: '晨光商圈',
+        sky: ['#17344a', '#1e3a35', '#17251f'],
+        road: ['#29302d', '#1f2723'],
+        lane: '#facc15',
+        shoulder: '#193127',
+        building: ['rgba(15, 23, 42, 0.52)', 'rgba(30, 41, 59, 0.42)'],
+        window: 'rgba(253, 224, 71, 0.32)',
+        accent: 'rgba(45, 212, 191, 0.34)'
+      },
+      {
+        name: '霓虹夜市',
+        sky: ['#18112a', '#23173b', '#111827'],
+        road: ['#27232e', '#1f1d29'],
+        lane: '#f472b6',
+        shoulder: '#21152c',
+        building: ['rgba(30, 27, 75, 0.58)', 'rgba(76, 29, 149, 0.38)'],
+        window: 'rgba(244, 114, 182, 0.42)',
+        accent: 'rgba(34, 211, 238, 0.38)'
+      },
+      {
+        name: '港灣高架',
+        sky: ['#0f2f3d', '#164e63', '#102a33'],
+        road: ['#26333a', '#1e2932'],
+        lane: '#bae6fd',
+        shoulder: '#12313a',
+        building: ['rgba(12, 74, 110, 0.45)', 'rgba(15, 23, 42, 0.5)'],
+        window: 'rgba(125, 211, 252, 0.34)',
+        accent: 'rgba(56, 189, 248, 0.36)'
+      },
+      {
+        name: '老城紅磚',
+        sky: ['#2a1f1a', '#3b261d', '#172018'],
+        road: ['#2d2a25', '#231f1b'],
+        lane: '#f59e0b',
+        shoulder: '#2b211a',
+        building: ['rgba(120, 53, 15, 0.42)', 'rgba(69, 26, 3, 0.42)'],
+        window: 'rgba(254, 215, 170, 0.28)',
+        accent: 'rgba(251, 146, 60, 0.34)'
+      },
+      {
+        name: '雨後都心',
+        sky: ['#102026', '#172a32', '#0f172a'],
+        road: ['#24313a', '#1d2630'],
+        lane: '#a7f3d0',
+        shoulder: '#12252a',
+        building: ['rgba(30, 41, 59, 0.62)', 'rgba(51, 65, 85, 0.46)'],
+        window: 'rgba(226, 232, 240, 0.26)',
+        accent: 'rgba(74, 222, 128, 0.3)'
+      }
+    ];
+    const CITY_STYLE_DURATION = 26;
+    const OBSTACLE_TYPES = [
+      {
+        name: 'banana-peel',
+        label: '香蕉皮',
+        effect: 'lane-change',
+        effectLabel: '強制換道',
+        color: '#fde047',
+        accent: '#f59e0b',
+        radius: 17,
+        life: 8.2
+      },
+      {
+        name: 'trash-bag',
+        label: '垃圾袋',
+        effect: 'slow-down',
+        effectLabel: '減速',
+        color: '#94a3b8',
+        accent: '#475569',
+        radius: 18,
+        life: 9.0
+      },
+      {
+        name: 'road-barrier',
+        label: '路障桶',
+        effect: 'crash',
+        effectLabel: '撞擊',
+        color: '#fb923c',
+        accent: '#f8fafc',
+        radius: 19,
+        life: 9.6
+      },
+      {
+        name: 'oil-slick',
+        label: '加速油漬',
+        effect: 'speed-up',
+        effectLabel: '加速',
+        color: '#22d3ee',
+        accent: '#0f766e',
+        radius: 18,
+        life: 8.8
+      }
+    ];
+    const OBSTACLE_ARM_DELAY = 0.45;
+    const OBSTACLE_DROP_START_SECONDS = 2.4;
+    const OBSTACLE_DROP_MIN_DELAY = 2.2;
+    const OBSTACLE_DROP_CHANCE = 0.68;
+    const OBSTACLE_MAX_ACTIVE = 3;
+    const OBSTACLE_SLOW_MULTIPLIER = 0.5;
+    const OBSTACLE_SPEED_UP_MULTIPLIER = 1.55;
+    const OBSTACLE_SPEED_EFFECT_SECONDS = 4.2;
     const VEHICLE_FRAME_WIDTH = 786;
     const VEHICLE_FRAME_HEIGHT = 321;
     const VEHICLE_FRAME_COUNT = 4;
@@ -342,14 +466,23 @@
     let viewWidth = 0;
     let viewHeight = 0;
     let laneHeight = 0;
+    let shoulderHeight = 0;
+    let roadTop = 0;
+    let roadBottom = 0;
     let laneCenters = [];
     let laneTops = [];
+    let routeModeIndex = -1;
+    let currentRouteMode = ROUTE_MODES[1];
+    let currentLaneCount = DEFAULT_LANE_COUNT;
+    let currentCityStyleIndex = 0;
+    let currentCityStyle = CITY_STYLES[currentCityStyleIndex];
 
     let gameState = 'menu';
     let lastTime = 0;
     let gameTime = 0;
     let cars = [];
     let particles = [];
+    let obstacles = [];
     let spawnWarnings = [];
     let floatingTexts = [];
     let nearMissPairs = new Set();
@@ -360,6 +493,9 @@
     let maxActiveConflicts = 1;
     let minSpawnReactionTime = 5.0;
     let nextCarId = 1;
+    let nextObstacleId = 1;
+    let obstacleClearCount = 0;
+    let obstacleCrashCount = 0;
     let score = 0;
     let combo = 0;
     let comboMultiplier = 1;
@@ -372,6 +508,10 @@
     let screenShakeIntensity = 0;
     let selectedCar = null;
     let gameEndReason = null;
+    let obstacleChallengeEnabled = false;
+    let obstacleLaneChangeCount = 0;
+    let obstacleSlowCount = 0;
+    let obstacleSpeedUpCount = 0;
 
     let audioCtx = null;
     let audioEnabled = true;
@@ -389,10 +529,20 @@
     let lastVehicleSoundTag = null;
     const VEHICLE_SOUND_ASSET_VERSION = '20260512-mixkit-v1';
     const VEHICLE_SOUND_TEST_GAP_MS = 2350;
-    const backgroundMusic = new Audio('assets/music/toy-car-battle.mp3');
-    backgroundMusic.loop = true;
-    backgroundMusic.preload = 'auto';
-    backgroundMusic.volume = musicVolume;
+    const BACKGROUND_MUSIC_SRC = 'assets/music/toy-car-battle.mp3';
+    const BACKGROUND_MUSIC_CROSSFADE_SECONDS = 30;
+    const backgroundMusicTracks = [
+      createBackgroundMusicTrack(),
+      createBackgroundMusicTrack()
+    ];
+    let backgroundMusic = backgroundMusicTracks[0];
+    let backgroundMusicActiveIndex = 0;
+    let backgroundMusicFadeLevels = [1, 0];
+    let backgroundMusicCrossfadeActive = false;
+    let backgroundMusicCrossfadeStart = 0;
+    let backgroundMusicCrossfadeDuration = BACKGROUND_MUSIC_CROSSFADE_SECONDS;
+    let backgroundMusicCrossfadeFrame = null;
+    let backgroundMusicLoopCount = 0;
     let backgroundMusicStarted = false;
     let backgroundMusicError = null;
 
@@ -435,6 +585,18 @@
       return `${Math.round(clamp(value, 0, 1) * 100)}%`;
     }
 
+    function createBackgroundMusicTrack() {
+      const track = new Audio(BACKGROUND_MUSIC_SRC);
+      track.loop = false;
+      track.preload = 'auto';
+      track.volume = 0;
+      track.addEventListener('error', function () {
+        backgroundMusicStarted = false;
+        backgroundMusicError = 'music load error';
+      });
+      return track;
+    }
+
     function applySfxVolume() {
       if (!audioMasterGain || !audioCtx) return;
       const nextGain = 0.9 * clamp(sfxVolume, 0, 1);
@@ -442,7 +604,10 @@
     }
 
     function applyMusicVolume() {
-      backgroundMusic.volume = clamp(musicVolume, 0, 1);
+      const baseVolume = clamp(musicVolume, 0, 1);
+      backgroundMusicTracks.forEach((track, index) => {
+        track.volume = baseVolume * clamp(backgroundMusicFadeLevels[index], 0, 1);
+      });
     }
 
     function updateMuteButton() {
@@ -476,13 +641,85 @@
       audioPanelBtn.setAttribute('aria-expanded', String(isVisible));
     }
 
+    function getBottomShoulderSlot() {
+      return currentLaneCount;
+    }
+
+    function isTrafficLaneSlot(slot) {
+      return slot >= 0 && slot < currentLaneCount;
+    }
+
+    function isShoulderSlot(slot) {
+      return slot === TOP_SHOULDER_SLOT || slot === getBottomShoulderSlot();
+    }
+
+    function getSlotCenter(slot) {
+      if (slot === TOP_SHOULDER_SLOT) return shoulderHeight * 0.5;
+      if (slot === getBottomShoulderSlot()) return viewHeight - shoulderHeight * 0.5;
+      return laneCenters[slot] || viewHeight * 0.5;
+    }
+
+    function getSlotTop(slot) {
+      if (slot === TOP_SHOULDER_SLOT) return 0;
+      if (slot === getBottomShoulderSlot()) return roadBottom;
+      return laneTops[slot] || roadTop;
+    }
+
+    function getSlotHeight(slot) {
+      return isShoulderSlot(slot) ? shoulderHeight : laneHeight;
+    }
+
+    function getSlotLabel(slot) {
+      if (slot === TOP_SHOULDER_SLOT) return 'top-shoulder';
+      if (slot === getBottomShoulderSlot()) return 'bottom-shoulder';
+      return `lane-${slot}`;
+    }
+
+    function getAdjacentSlot(slot, offset) {
+      if (offset < 0) {
+        if (slot === TOP_SHOULDER_SLOT) return null;
+        if (slot === 0) return TOP_SHOULDER_SLOT;
+        if (slot === getBottomShoulderSlot()) return currentLaneCount - 1;
+        return slot - 1;
+      }
+
+      if (offset > 0) {
+        if (slot === getBottomShoulderSlot()) return null;
+        if (slot === currentLaneCount - 1) return getBottomShoulderSlot();
+        if (slot === TOP_SHOULDER_SLOT) return 0;
+        return slot + 1;
+      }
+
+      return null;
+    }
+
+    function selectNextRouteMode() {
+      routeModeIndex = (routeModeIndex + 1 + ROUTE_MODES.length) % ROUTE_MODES.length;
+      currentRouteMode = ROUTE_MODES[routeModeIndex];
+      currentLaneCount = currentRouteMode.laneCount;
+      updateHud();
+    }
+
+    function updateCityStyle(force = false) {
+      const nextIndex = gameState === 'playing'
+        ? Math.floor(gameTime / CITY_STYLE_DURATION) % CITY_STYLES.length
+        : currentCityStyleIndex;
+      if (!force && nextIndex === currentCityStyleIndex) return;
+      currentCityStyleIndex = nextIndex;
+      currentCityStyle = CITY_STYLES[currentCityStyleIndex];
+      if (gameState === 'playing' && !force) {
+        floatingTexts.push(new FloatingText(currentCityStyle.name, viewWidth / 2, viewHeight * 0.13, currentCityStyle.accent));
+      }
+      updateHud();
+    }
+
     function updateHud() {
       scoreLabel.textContent = String(score);
       comboLabel.textContent = combo > 0 ? `${combo} / x${comboMultiplier}` : '0';
       nearMissLabel.textContent = String(nearMissCount);
       bestScoreHeader.textContent = String(bestScore);
       bestScoreMobile.textContent = String(bestScore);
-      stageLabel.textContent = currentStage;
+      stageLabel.textContent = `${currentStage} · ${currentRouteMode.shortName} · ${currentCityStyle.name}`;
     }
 
     function resizeCanvas() {
@@ -495,19 +732,28 @@
       canvas.height = Math.floor(viewHeight * dpr);
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
 
-      laneHeight = viewHeight / LANES;
+      shoulderHeight = clamp(viewHeight * 0.105, 34, 58);
+      roadTop = shoulderHeight;
+      roadBottom = viewHeight - shoulderHeight;
+      laneHeight = Math.max(1, (roadBottom - roadTop) / currentLaneCount);
       laneCenters = [];
       laneTops = [];
-      for (let i = 0; i < LANES; i++) {
-        laneTops.push(laneHeight * i);
-        laneCenters.push(laneHeight * (i + 0.5));
+      for (let i = 0; i < currentLaneCount; i++) {
+        laneTops.push(roadTop + laneHeight * i);
+        laneCenters.push(roadTop + laneHeight * (i + 0.5));
       }
 
       cars.forEach(car => {
         car.resize();
-        car.y = laneCenters[car.laneIndex];
+        if (!isTrafficLaneSlot(car.laneIndex) && !isShoulderSlot(car.laneIndex)) {
+          car.laneIndex = clamp(car.laneIndex, 0, currentLaneCount - 1);
+        }
+        car.y = getSlotCenter(car.laneIndex);
         car.startY = car.y;
         car.targetY = car.y;
+      });
+      obstacles.forEach(obstacle => {
+        obstacle.y = getSlotCenter(obstacle.laneIndex);
       });
       render();
     }
@@ -886,48 +1132,178 @@
       releaseAudioOutput(output, 480);
     }
 
+    function getBackgroundMusicNextIndex() {
+      return backgroundMusicActiveIndex === 0 ? 1 : 0;
+    }
+
+    function getBackgroundMusicCrossfadeDuration(duration) {
+      if (!Number.isFinite(duration) || duration <= 0) return BACKGROUND_MUSIC_CROSSFADE_SECONDS;
+      return Math.min(BACKGROUND_MUSIC_CROSSFADE_SECONDS, Math.max(1, duration / 2));
+    }
+
+    function resetBackgroundMusicTracks(resetLoopCount = true) {
+      cancelBackgroundMusicMonitor();
+      backgroundMusicTracks.forEach((track) => {
+        track.pause();
+        try {
+          track.currentTime = 0;
+        } catch (error) {
+          // Some browsers may block seeking before metadata is loaded.
+        }
+      });
+      backgroundMusicActiveIndex = 0;
+      backgroundMusic = backgroundMusicTracks[backgroundMusicActiveIndex];
+      backgroundMusicFadeLevels = [1, 0];
+      backgroundMusicCrossfadeActive = false;
+      backgroundMusicCrossfadeStart = 0;
+      backgroundMusicCrossfadeDuration = BACKGROUND_MUSIC_CROSSFADE_SECONDS;
+      if (resetLoopCount) backgroundMusicLoopCount = 0;
+      applyMusicVolume();
+    }
+
+    function cancelBackgroundMusicMonitor() {
+      if (backgroundMusicCrossfadeFrame !== null) {
+        window.cancelAnimationFrame(backgroundMusicCrossfadeFrame);
+        backgroundMusicCrossfadeFrame = null;
+      }
+    }
+
+    function playBackgroundMusicTracks() {
+      const activeTrack = backgroundMusicTracks[backgroundMusicActiveIndex];
+      const nextTrack = backgroundMusicTracks[getBackgroundMusicNextIndex()];
+      const tracksToPlay = [activeTrack];
+      if (backgroundMusicCrossfadeActive && backgroundMusicFadeLevels[getBackgroundMusicNextIndex()] > 0) {
+        tracksToPlay.push(nextTrack);
+      }
+
+      applyMusicVolume();
+      return Promise.all(tracksToPlay.map((track) => {
+        const playPromise = track.play();
+        return playPromise && typeof playPromise.then === 'function' ? playPromise : Promise.resolve();
+      }));
+    }
+
     function startBackgroundMusic(restart = false) {
       backgroundMusicError = null;
       if (!audioEnabled) return;
       if (restart) {
-        try {
-          backgroundMusic.currentTime = 0;
-        } catch (error) {
-          // Some browsers may block seeking before metadata is loaded.
-        }
+        resetBackgroundMusicTracks(true);
       }
-      applyMusicVolume();
-      const playPromise = backgroundMusic.play();
-      if (playPromise && typeof playPromise.then === 'function') {
-        playPromise
-          .then(() => {
-            backgroundMusicStarted = true;
-          })
-          .catch(error => {
-            backgroundMusicStarted = false;
-            backgroundMusicError = error.message || 'playback blocked';
-          });
-      } else {
-        backgroundMusicStarted = true;
-      }
+      playBackgroundMusicTracks()
+        .then(() => {
+          backgroundMusicStarted = true;
+          scheduleBackgroundMusicMonitor();
+        })
+        .catch(error => {
+          backgroundMusicStarted = false;
+          backgroundMusicError = error.message || 'playback blocked';
+        });
     }
 
     function stopBackgroundMusic(reset = false) {
-      backgroundMusic.pause();
+      cancelBackgroundMusicMonitor();
+      backgroundMusicTracks.forEach((track) => track.pause());
       backgroundMusicStarted = false;
       if (reset) {
-        try {
-          backgroundMusic.currentTime = 0;
-        } catch (error) {
-          // Ignore seek errors before metadata is ready.
-        }
+        resetBackgroundMusicTracks(true);
       }
     }
 
-    backgroundMusic.addEventListener('error', function () {
-      backgroundMusicStarted = false;
-      backgroundMusicError = 'music load error';
-    });
+    function scheduleBackgroundMusicMonitor() {
+      cancelBackgroundMusicMonitor();
+      backgroundMusicCrossfadeFrame = window.requestAnimationFrame(updateBackgroundMusicLoop);
+    }
+
+    function updateBackgroundMusicLoop() {
+      backgroundMusicCrossfadeFrame = null;
+      if (!backgroundMusicStarted || !audioEnabled || gameState !== 'playing') return;
+
+      const activeTrack = backgroundMusicTracks[backgroundMusicActiveIndex];
+      const nextIndex = getBackgroundMusicNextIndex();
+      const duration = activeTrack.duration;
+      const hasDuration = Number.isFinite(duration) && duration > 0;
+
+      if (hasDuration && !backgroundMusicCrossfadeActive) {
+        const fadeDuration = getBackgroundMusicCrossfadeDuration(duration);
+        if (activeTrack.currentTime >= duration - fadeDuration) {
+          beginBackgroundMusicCrossfade(fadeDuration);
+        }
+      }
+
+      if (backgroundMusicCrossfadeActive) {
+        const progress = clamp(
+          (activeTrack.currentTime - backgroundMusicCrossfadeStart) / backgroundMusicCrossfadeDuration,
+          0,
+          1
+        );
+        backgroundMusicFadeLevels[backgroundMusicActiveIndex] = 1 - progress;
+        backgroundMusicFadeLevels[nextIndex] = progress;
+        applyMusicVolume();
+
+        if (progress >= 1 || activeTrack.ended) {
+          finishBackgroundMusicCrossfade();
+        }
+      } else if (activeTrack.ended) {
+        restartBackgroundMusicWithoutCrossfade();
+      }
+
+      backgroundMusicCrossfadeFrame = window.requestAnimationFrame(updateBackgroundMusicLoop);
+    }
+
+    function beginBackgroundMusicCrossfade(fadeDuration) {
+      const nextIndex = getBackgroundMusicNextIndex();
+      const nextTrack = backgroundMusicTracks[nextIndex];
+      backgroundMusicCrossfadeActive = true;
+      backgroundMusicCrossfadeStart = backgroundMusicTracks[backgroundMusicActiveIndex].currentTime;
+      backgroundMusicCrossfadeDuration = fadeDuration;
+      backgroundMusicFadeLevels[nextIndex] = 0;
+      try {
+        nextTrack.currentTime = 0;
+      } catch (error) {
+        // Ignore seek errors before metadata is ready.
+      }
+      applyMusicVolume();
+      const playPromise = nextTrack.play();
+      if (playPromise && typeof playPromise.catch === 'function') {
+        playPromise.catch(error => {
+          backgroundMusicError = error.message || 'crossfade playback blocked';
+        });
+      }
+    }
+
+    function finishBackgroundMusicCrossfade() {
+      const oldIndex = backgroundMusicActiveIndex;
+      const nextIndex = getBackgroundMusicNextIndex();
+      const oldTrack = backgroundMusicTracks[oldIndex];
+      oldTrack.pause();
+      try {
+        oldTrack.currentTime = 0;
+      } catch (error) {
+        // Ignore seek errors before metadata is ready.
+      }
+
+      backgroundMusicActiveIndex = nextIndex;
+      backgroundMusic = backgroundMusicTracks[backgroundMusicActiveIndex];
+      backgroundMusicFadeLevels[oldIndex] = 0;
+      backgroundMusicFadeLevels[backgroundMusicActiveIndex] = 1;
+      backgroundMusicCrossfadeActive = false;
+      backgroundMusicLoopCount++;
+      applyMusicVolume();
+    }
+
+    function restartBackgroundMusicWithoutCrossfade() {
+      const activeTrack = backgroundMusicTracks[backgroundMusicActiveIndex];
+      try {
+        activeTrack.currentTime = 0;
+      } catch (error) {
+        // Ignore seek errors before metadata is ready.
+      }
+      backgroundMusicLoopCount++;
+      activeTrack.play().catch(error => {
+        backgroundMusicStarted = false;
+        backgroundMusicError = error.message || 'playback blocked';
+      });
+    }
 
     function playVehicleSoundTest() {
       audioEnabled = true;
@@ -1100,7 +1476,7 @@
         this.direction = direction;
         this.sprite = sprite || pickVehicleSprite();
         this.x = 0;
-        this.y = laneCenters[laneIndex] || 0;
+        this.y = getSlotCenter(laneIndex);
         this.startY = this.y;
         this.targetY = this.y;
         this.width = 0;
@@ -1109,6 +1485,11 @@
         this.laneChangeProgress = 0;
         this.isChangingLane = false;
         this.hasPlayedAppearanceSound = false;
+        this.obstacleDropTimer = getNextObstacleDropDelay();
+        this.obstaclesDropped = 0;
+        this.speedEffectKind = null;
+        this.speedEffectMultiplier = 1;
+        this.speedEffectTime = 0;
         this.resize();
         this.x = direction > 0 ? -this.width - 24 : viewWidth + 24;
       }
@@ -1120,9 +1501,13 @@
       }
 
       update(dt) {
-        const speed = this.baseSpeed * baseSpeedMultiplier * difficultyScale;
-        this.x += this.direction * speed * dt;
+        this.updateSpeedEffect(dt);
+        const speed = getCurrentCarSpeed(this);
+        if (!this.isParkedOnShoulder()) {
+          this.x += this.direction * speed * dt;
+        }
         this.playAppearanceSoundIfVisible();
+        this.updateObstacleDrop(dt);
 
         if (this.isChangingLane) {
           const laneChangeSpeed = 7.8;
@@ -1138,6 +1523,48 @@
         }
       }
 
+      updateSpeedEffect(dt) {
+        if (this.speedEffectTime <= 0) {
+          this.speedEffectKind = null;
+          this.speedEffectMultiplier = 1;
+          this.speedEffectTime = 0;
+          return;
+        }
+
+        this.speedEffectTime = Math.max(0, this.speedEffectTime - dt);
+        if (this.speedEffectTime === 0) {
+          this.speedEffectKind = null;
+          this.speedEffectMultiplier = 1;
+        }
+      }
+
+      applySpeedEffect(kind, multiplier, duration) {
+        this.speedEffectKind = kind;
+        this.speedEffectMultiplier = multiplier;
+        this.speedEffectTime = Math.max(this.speedEffectTime, duration);
+      }
+
+      updateObstacleDrop(dt) {
+        if (gameState !== 'playing') return;
+        if (!obstacleChallengeEnabled) return;
+        if (this.isChangingLane || this.isParkedOnShoulder()) return;
+        if (!isTrafficLaneSlot(this.laneIndex)) return;
+        if (gameTime < OBSTACLE_DROP_START_SECONDS) return;
+        if (this.obstaclesDropped >= getMaxObstacleDropsPerCar()) return;
+
+        this.obstacleDropTimer -= dt;
+        if (this.obstacleDropTimer > 0) return;
+
+        if (tryDropObstacleFromCar(this)) {
+          this.obstaclesDropped++;
+        }
+        this.obstacleDropTimer = getNextObstacleDropDelay();
+      }
+
+      isParkedOnShoulder() {
+        return isShoulderSlot(this.laneIndex) && !this.isChangingLane;
+      }
+
       playAppearanceSoundIfVisible() {
         if (this.hasPlayedAppearanceSound) return;
         const frontEdge = this.direction > 0 ? this.x + this.width : this.x;
@@ -1150,15 +1577,22 @@
       }
 
       requestLaneChange(offset) {
-        const newLane = this.laneIndex + offset;
-        if (newLane < 0 || newLane >= LANES) return false;
+        if (this.isChangingLane) return false;
+        const newLane = getAdjacentSlot(this.laneIndex, offset);
+        if (newLane === null || newLane === undefined) return false;
+        if (!isSlotClearForCar(this, newLane)) return false;
 
+        return this.startLaneChangeTo(newLane, true);
+      }
+
+      startLaneChangeTo(newLane, shouldPlaySound = true) {
+        if (this.isChangingLane) return false;
         this.laneIndex = newLane;
         this.startY = this.y;
-        this.targetY = laneCenters[newLane];
+        this.targetY = getSlotCenter(newLane);
         this.laneChangeProgress = 0;
         this.isChangingLane = true;
-        playSwipeSound();
+        if (shouldPlaySound) playSwipeSound();
         return true;
       }
 
@@ -1208,6 +1642,8 @@
           g.restore();
         }
 
+        this.drawSpeedEffectBadge(g, centerX, y);
+
         if (!vehicleSpriteReady) {
           drawFallbackVehicle(g, x, y, w, h, this.direction);
           return;
@@ -1239,6 +1675,32 @@
         g.restore();
       }
 
+      drawSpeedEffectBadge(g, centerX, topY) {
+        if (this.speedEffectTime <= 0 || !this.speedEffectKind) return;
+        const isFast = this.speedEffectKind === 'speed-up';
+        const text = isFast ? '快' : '慢';
+        const fill = isFast ? 'rgba(34, 211, 238, 0.92)' : 'rgba(148, 163, 184, 0.92)';
+        const stroke = isFast ? 'rgba(8, 47, 73, 0.95)' : 'rgba(15, 23, 42, 0.95)';
+
+        g.save();
+        g.font = '800 13px system-ui, sans-serif';
+        g.textAlign = 'center';
+        g.textBaseline = 'middle';
+        const badgeW = 28;
+        const badgeH = 20;
+        const badgeX = centerX - badgeW / 2;
+        const badgeY = topY - badgeH - 5;
+        g.fillStyle = stroke;
+        roundRect(g, badgeX - 2, badgeY - 2, badgeW + 4, badgeH + 4, 9);
+        g.fill();
+        g.fillStyle = fill;
+        roundRect(g, badgeX, badgeY, badgeW, badgeH, 8);
+        g.fill();
+        g.fillStyle = '#f8fafc';
+        g.fillText(text, centerX, badgeY + badgeH / 2 + 0.5);
+        g.restore();
+      }
+
       getHitbox() {
         const shrinkX = this.width * 0.16;
         const shrinkY = this.height * 0.28;
@@ -1248,6 +1710,180 @@
           width: this.width - shrinkX,
           height: this.height - shrinkY
         };
+      }
+    }
+
+    class RoadObstacle {
+      constructor(laneIndex, x, sourceCarId, type = null) {
+        this.id = nextObstacleId++;
+        this.laneIndex = laneIndex;
+        this.x = x;
+        this.y = getSlotCenter(laneIndex);
+        this.sourceCarId = sourceCarId;
+        this.type = type || pickObstacleType();
+        this.radius = this.type.radius;
+        this.life = this.type.life;
+        this.age = 0;
+      }
+
+      update(dt) {
+        this.age += dt;
+        this.y = getSlotCenter(this.laneIndex);
+      }
+
+      isExpired() {
+        return this.age >= this.life;
+      }
+
+      isArmed() {
+        return this.age >= OBSTACLE_ARM_DELAY;
+      }
+
+      containsPoint(x, y) {
+        const dx = x - this.x;
+        const dy = y - this.y;
+        const hitRadius = this.radius + Math.max(10, laneHeight * 0.08);
+        return dx * dx + dy * dy <= hitRadius * hitRadius;
+      }
+
+      getHitbox() {
+        const size = this.radius * 1.42;
+        return {
+          x: this.x - size,
+          y: this.y - size,
+          width: size * 2,
+          height: size * 2
+        };
+      }
+
+      draw(g) {
+        const fadeOut = clamp((this.life - this.age) / 1.2, 0, 1);
+        const blink = 0.72 + Math.sin(gameTime * 9 + this.id) * 0.18;
+
+        g.save();
+        g.globalAlpha = Math.min(1, fadeOut + 0.18);
+
+        const shadow = g.createRadialGradient(this.x, this.y + this.radius * 0.65, 2, this.x, this.y + this.radius * 0.65, this.radius * 1.25);
+        shadow.addColorStop(0, 'rgba(0, 0, 0, 0.34)');
+        shadow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        g.fillStyle = shadow;
+        g.beginPath();
+        g.ellipse(this.x, this.y + this.radius * 0.65, this.radius * 1.08, this.radius * 0.36, 0, 0, Math.PI * 2);
+        g.fill();
+
+        g.strokeStyle = this.isArmed()
+          ? `rgba(253, 186, 116, ${0.36 * blink})`
+          : `rgba(254, 240, 138, ${0.52 * blink})`;
+        g.lineWidth = 3;
+        g.setLineDash(this.isArmed() ? [] : [6, 5]);
+        g.beginPath();
+        g.arc(this.x, this.y, this.radius + 9 + Math.sin(gameTime * 8 + this.id) * 2, 0, Math.PI * 2);
+        g.stroke();
+        g.setLineDash([]);
+
+        if (this.type.name === 'banana-peel') {
+          this.drawBanana(g);
+        } else if (this.type.name === 'trash-bag') {
+          this.drawTrashBag(g);
+        } else if (this.type.name === 'oil-slick') {
+          this.drawOilSlick(g);
+        } else {
+          this.drawRoadBarrier(g);
+        }
+
+        g.restore();
+      }
+
+      drawBanana(g) {
+        const r = this.radius;
+        g.save();
+        g.translate(this.x, this.y);
+        g.rotate(-0.34 + Math.sin(gameTime * 2 + this.id) * 0.06);
+        g.lineCap = 'round';
+        g.strokeStyle = this.type.accent;
+        g.lineWidth = 8;
+        g.beginPath();
+        g.moveTo(-r * 0.72, r * 0.18);
+        g.quadraticCurveTo(-r * 0.08, -r * 0.62, r * 0.76, -r * 0.12);
+        g.stroke();
+        g.strokeStyle = this.type.color;
+        g.lineWidth = 5;
+        g.beginPath();
+        g.moveTo(-r * 0.65, r * 0.14);
+        g.quadraticCurveTo(-r * 0.05, -r * 0.48, r * 0.62, -r * 0.1);
+        g.stroke();
+        g.fillStyle = '#78350f';
+        g.beginPath();
+        g.arc(-r * 0.78, r * 0.2, 3, 0, Math.PI * 2);
+        g.arc(r * 0.74, -r * 0.08, 3, 0, Math.PI * 2);
+        g.fill();
+        g.restore();
+      }
+
+      drawTrashBag(g) {
+        const r = this.radius;
+        g.save();
+        g.translate(this.x, this.y);
+        g.fillStyle = this.type.accent;
+        g.beginPath();
+        g.moveTo(-r * 0.32, -r * 0.52);
+        g.lineTo(0, -r * 0.95);
+        g.lineTo(r * 0.34, -r * 0.52);
+        g.closePath();
+        g.fill();
+        g.fillStyle = this.type.color;
+        roundRect(g, -r * 0.86, -r * 0.42, r * 1.72, r * 1.12, r * 0.34);
+        g.fill();
+        g.strokeStyle = 'rgba(226, 232, 240, 0.72)';
+        g.lineWidth = 2;
+        g.beginPath();
+        g.moveTo(-r * 0.38, -r * 0.2);
+        g.quadraticCurveTo(0, -r * 0.38, r * 0.36, -r * 0.12);
+        g.stroke();
+        g.restore();
+      }
+
+      drawOilSlick(g) {
+        const r = this.radius;
+        g.save();
+        g.translate(this.x, this.y);
+        g.rotate(0.22 + Math.sin(gameTime * 2.4 + this.id) * 0.05);
+        const slick = g.createRadialGradient(0, 0, 2, 0, 0, r * 1.1);
+        slick.addColorStop(0, 'rgba(224, 242, 254, 0.95)');
+        slick.addColorStop(0.46, this.type.color);
+        slick.addColorStop(1, this.type.accent);
+        g.fillStyle = slick;
+        g.beginPath();
+        g.ellipse(0, 0, r * 1.12, r * 0.62, 0, 0, Math.PI * 2);
+        g.fill();
+        g.strokeStyle = 'rgba(240, 249, 255, 0.75)';
+        g.lineWidth = 2;
+        g.beginPath();
+        g.arc(-r * 0.22, -r * 0.06, r * 0.28, 0.2, Math.PI * 1.25);
+        g.stroke();
+        g.fillStyle = 'rgba(8, 47, 73, 0.46)';
+        g.beginPath();
+        g.ellipse(r * 0.36, r * 0.18, r * 0.22, r * 0.12, -0.3, 0, Math.PI * 2);
+        g.fill();
+        g.restore();
+      }
+
+      drawRoadBarrier(g) {
+        const r = this.radius;
+        g.save();
+        g.translate(this.x, this.y);
+        g.fillStyle = this.type.accent;
+        roundRect(g, -r * 0.74, -r * 0.82, r * 1.48, r * 1.64, 6);
+        g.fill();
+        g.fillStyle = this.type.color;
+        roundRect(g, -r * 0.58, -r * 0.68, r * 1.16, r * 1.36, 5);
+        g.fill();
+        g.fillStyle = 'rgba(255, 255, 255, 0.92)';
+        g.fillRect(-r * 0.5, -r * 0.34, r, r * 0.18);
+        g.fillRect(-r * 0.5, r * 0.2, r, r * 0.18);
+        g.fillStyle = 'rgba(15, 23, 42, 0.28)';
+        g.fillRect(-r * 0.42, r * 0.72, r * 0.84, r * 0.16);
+        g.restore();
       }
     }
 
@@ -1326,6 +1962,26 @@
 
     function clamp(value, min, max) {
       return Math.max(min, Math.min(max, value));
+    }
+
+    function hexToRgba(hex, alpha) {
+      const clean = hex.replace('#', '');
+      const value = parseInt(clean.length === 3
+        ? clean.split('').map(char => char + char).join('')
+        : clean, 16);
+      const r = (value >> 16) & 255;
+      const g = (value >> 8) & 255;
+      const b = value & 255;
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    }
+
+    function shadeColor(hex, amount) {
+      const clean = hex.replace('#', '');
+      const value = parseInt(clean, 16);
+      const r = clamp(((value >> 16) & 255) + amount, 0, 255);
+      const g = clamp(((value >> 8) & 255) + amount, 0, 255);
+      const b = clamp((value & 255) + amount, 0, 255);
+      return `rgb(${r}, ${g}, ${b})`;
     }
 
     function easeOutCubic(t) {
@@ -1407,7 +2063,7 @@
       difficultyScale = curve.speed;
       spawnInterval = curve.interval;
       spawnLeadTime = curve.lead;
-      maxCars = curve.maxCars;
+      maxCars = Math.max(3, curve.maxCars + currentRouteMode.maxCarsOffset);
       maxActiveConflicts = curve.maxConflicts;
       minSpawnReactionTime = curve.reactionTime;
 
@@ -1423,11 +2079,25 @@
     }
 
     function getCurrentCarSpeed(car) {
-      return car.baseSpeed * baseSpeedMultiplier * difficultyScale;
+      const effectMultiplier = car && car.speedEffectTime > 0
+        ? (car.speedEffectMultiplier || 1)
+        : 1;
+      return car.baseSpeed * baseSpeedMultiplier * difficultyScale * currentRouteMode.speedModifier * effectMultiplier;
     }
 
     function estimateSpriteSpeed(sprite) {
-      return 160 * sprite.speedBias * baseSpeedMultiplier * difficultyScale;
+      return 160 * sprite.speedBias * baseSpeedMultiplier * difficultyScale * currentRouteMode.speedModifier;
+    }
+
+    function isSlotClearForCar(sourceCar, targetSlot) {
+      const targetX = sourceCar.x + sourceCar.width / 2;
+      const clearance = Math.max(92, sourceCar.width * 0.72, viewWidth * 0.1);
+      return !cars.some(car => {
+        if (car === sourceCar) return false;
+        if (car.laneIndex !== targetSlot) return false;
+        const carCenter = car.x + car.width / 2;
+        return Math.abs(carCenter - targetX) < clearance + car.width * 0.32;
+      });
     }
 
     function getHeadOnTime(aX, aWidth, aDirection, aSpeed, bX, bWidth, bDirection, bSpeed) {
@@ -1476,6 +2146,7 @@
         for (let j = i + 1; j < cars.length; j++) {
           const a = cars[i];
           const b = cars[j];
+          if (!isTrafficLaneSlot(a.laneIndex) || !isTrafficLaneSlot(b.laneIndex)) continue;
           if (a.laneIndex !== b.laneIndex || a.direction === b.direction) continue;
           const time = getHeadOnTime(
             a.x,
@@ -1494,12 +2165,15 @@
     }
 
     function hasSafeEscapeLane(laneIndex, meetingX, conflictTime, candidateWidth) {
-      const adjacentLanes = [laneIndex - 1, laneIndex + 1].filter(lane => lane >= 0 && lane < LANES);
+      const adjacentLanes = [
+        getAdjacentSlot(laneIndex, -1),
+        getAdjacentSlot(laneIndex, 1)
+      ].filter(lane => lane !== null && lane !== undefined);
       const checkTime = clamp(conflictTime * 0.55, 0.75, 3.2);
       const clearance = Math.max(120, candidateWidth * 0.95, viewWidth * 0.16);
 
       return adjacentLanes.some(adjacentLane => {
-        if (spawnWarnings.some(w => w.laneIndex === adjacentLane)) return false;
+        if (isTrafficLaneSlot(adjacentLane) && spawnWarnings.some(w => w.laneIndex === adjacentLane)) return false;
         return !cars.some(car => {
           if (car.laneIndex !== adjacentLane) return false;
           const projectedCenter = car.x + car.width / 2 + car.direction * getCurrentCarSpeed(car) * checkTime;
@@ -1555,7 +2229,7 @@
       const candidates = [];
       for (let attempt = 0; attempt < 36; attempt++) {
         const direction = Math.random() < 0.5 ? 1 : -1;
-        const laneIndex = Math.floor(Math.random() * LANES);
+        const laneIndex = Math.floor(Math.random() * currentLaneCount);
         const sprite = pickVehicleSprite();
         if (canSpawnCar(laneIndex, direction, false, sprite)) {
           const laneLoad = cars.filter(car => car.laneIndex === laneIndex).length;
@@ -1600,6 +2274,200 @@
       spawnWarnings = remaining;
     }
 
+    function getMaxActiveObstacles() {
+      return obstacleChallengeEnabled ? OBSTACLE_MAX_ACTIVE : 0;
+    }
+
+    function getMaxObstacleDropsPerCar() {
+      return 1;
+    }
+
+    function getNextObstacleDropDelay() {
+      return OBSTACLE_DROP_MIN_DELAY + Math.random() * 2.4;
+    }
+
+    function pickObstacleType() {
+      return OBSTACLE_TYPES[Math.floor(Math.random() * OBSTACLE_TYPES.length)];
+    }
+
+    function getObstacleDropX(car) {
+      const trailingEdge = car.direction > 0 ? car.x : car.x + car.width;
+      return clamp(trailingEdge - car.direction * 14, 34, viewWidth - 34);
+    }
+
+    function isCarInDropZone(car) {
+      if (!isTrafficLaneSlot(car.laneIndex)) return false;
+      if (car.direction > 0) {
+        return car.x > 68 && car.x + car.width < viewWidth - 24;
+      }
+      return car.x > 24 && car.x + car.width < viewWidth - 68;
+    }
+
+    function isObstaclePositionClear(laneIndex, x, sourceCar) {
+      const spacing = Math.max(62, laneHeight * 0.72);
+      if (obstacles.some(obstacle =>
+        obstacle.laneIndex === laneIndex && Math.abs(obstacle.x - x) < spacing
+      )) {
+        return false;
+      }
+
+      const obstacleBox = {
+        x: x - 24,
+        y: getSlotCenter(laneIndex) - 24,
+        width: 48,
+        height: 48
+      };
+
+      return !cars.some(car => {
+        if (car === sourceCar) return false;
+        if (car.laneIndex !== laneIndex) return false;
+        const hb = car.getHitbox();
+        const pad = Math.max(18, laneHeight * 0.12);
+        return rectsOverlap(obstacleBox, {
+          x: hb.x - pad,
+          y: hb.y - pad,
+          width: hb.width + pad * 2,
+          height: hb.height + pad * 2
+        });
+      });
+    }
+
+    function tryDropObstacleFromCar(car) {
+      if (!obstacleChallengeEnabled) return false;
+      if (obstacles.length >= getMaxActiveObstacles()) return false;
+      if (!isCarInDropZone(car)) return false;
+      if (Math.random() > OBSTACLE_DROP_CHANCE) return false;
+
+      const x = getObstacleDropX(car);
+      if (!isObstaclePositionClear(car.laneIndex, x, car)) return false;
+
+      const obstacle = new RoadObstacle(car.laneIndex, x, car.id, pickObstacleType());
+      obstacles.push(obstacle);
+      floatingTexts.push(new FloatingText(obstacle.type.effectLabel, obstacle.x, obstacle.y - obstacle.radius - 12, '#fef08a'));
+      return true;
+    }
+
+    function updateObstacles(dt) {
+      obstacles.forEach(obstacle => obstacle.update(dt));
+      obstacles = obstacles.filter(obstacle => !obstacle.isExpired());
+    }
+
+    function findObstacleAt(x, y) {
+      for (let i = obstacles.length - 1; i >= 0; i--) {
+        if (obstacles[i].containsPoint(x, y)) {
+          return obstacles[i];
+        }
+      }
+      return null;
+    }
+
+    function clearObstacle(obstacle) {
+      if (!removeObstacle(obstacle)) return false;
+      obstacleClearCount++;
+      addScore(1, '清除 +1', obstacle.x, obstacle.y - obstacle.radius, '#fef08a');
+      playNearMissSound();
+      return true;
+    }
+
+    function removeObstacle(obstacle) {
+      const index = obstacles.indexOf(obstacle);
+      if (index < 0) return false;
+      obstacles.splice(index, 1);
+      return true;
+    }
+
+    function checkObstacleCollisions() {
+      if (!obstacleChallengeEnabled) return false;
+      for (let obstacle of obstacles) {
+        if (!obstacle.isArmed()) continue;
+        const obstacleHitbox = obstacle.getHitbox();
+        for (let car of cars) {
+          if (!isTrafficLaneSlot(car.laneIndex)) continue;
+          if (car.laneIndex !== obstacle.laneIndex) continue;
+          if (car.isParkedOnShoulder()) continue;
+
+          if (rectsOverlap(obstacleHitbox, car.getHitbox())) {
+            return applyObstacleEffect(obstacle, car);
+          }
+        }
+      }
+      return false;
+    }
+
+    function applyObstacleEffect(obstacle, car) {
+      if (obstacle.type.effect === 'crash') {
+        triggerObstacleCrash(obstacle, car);
+        return true;
+      }
+
+      removeObstacle(obstacle);
+      createObstacleEffectParticles(obstacle.x, obstacle.y, obstacle.type.color, 18);
+
+      if (obstacle.type.effect === 'lane-change') {
+        obstacleLaneChangeCount++;
+        const shifted = forceObstacleLaneChange(car, obstacle);
+        floatingTexts.push(new FloatingText(shifted ? '強制換道' : '打滑!', obstacle.x, obstacle.y - obstacle.radius, '#fde047'));
+        if (!shifted) playSwipeSound();
+        return false;
+      }
+
+      if (obstacle.type.effect === 'slow-down') {
+        obstacleSlowCount++;
+        car.applySpeedEffect('slow-down', OBSTACLE_SLOW_MULTIPLIER, OBSTACLE_SPEED_EFFECT_SECONDS);
+        floatingTexts.push(new FloatingText('減速!', obstacle.x, obstacle.y - obstacle.radius, '#cbd5e1'));
+        playNearMissSound();
+        return false;
+      }
+
+      if (obstacle.type.effect === 'speed-up') {
+        obstacleSpeedUpCount++;
+        car.applySpeedEffect('speed-up', OBSTACLE_SPEED_UP_MULTIPLIER, OBSTACLE_SPEED_EFFECT_SECONDS);
+        floatingTexts.push(new FloatingText('加速!', obstacle.x, obstacle.y - obstacle.radius, '#67e8f9'));
+        playPassSound();
+        return false;
+      }
+
+      return false;
+    }
+
+    function forceObstacleLaneChange(car, obstacle) {
+      if (car.isChangingLane) return false;
+      const candidates = [-1, 1]
+        .map(offset => car.laneIndex + offset)
+        .filter(slot => isTrafficLaneSlot(slot));
+      if (!candidates.length) return false;
+
+      candidates.sort((a, b) => {
+        const scoreA = getLaneChangeSpaceScore(car, a);
+        const scoreB = getLaneChangeSpaceScore(car, b);
+        if (scoreA !== scoreB) return scoreB - scoreA;
+        return ((a + obstacle.id) % 2) - ((b + obstacle.id) % 2);
+      });
+
+      return car.startLaneChangeTo(candidates[0], true);
+    }
+
+    function getLaneChangeSpaceScore(sourceCar, targetLane) {
+      const sourceCenter = sourceCar.x + sourceCar.width / 2;
+      let nearestGap = viewWidth;
+      for (let car of cars) {
+        if (car === sourceCar || car.laneIndex !== targetLane) continue;
+        const gap = Math.abs((car.x + car.width / 2) - sourceCenter);
+        nearestGap = Math.min(nearestGap, gap);
+      }
+      return nearestGap;
+    }
+
+    function createObstacleEffectParticles(x, y, color, count) {
+      for (let i = 0; i < count; i++) {
+        const particle = new Particle(x, y);
+        particle.color = i % 2 === 0 ? hexToRgba(color, 1) : 'rgba(248, 250, 252, 1)';
+        particle.life *= 0.72;
+        particle.size *= 0.8;
+        particles.push(particle);
+      }
+    }
+
     function addScore(points, label, x, y, color) {
       score += points;
       if (score > bestScore) {
@@ -1627,6 +2495,7 @@
         for (let j = i + 1; j < cars.length; j++) {
           const a = cars[i];
           const b = cars[j];
+          if (!isTrafficLaneSlot(a.laneIndex) || !isTrafficLaneSlot(b.laneIndex)) continue;
           if (a.direction === b.direction) continue;
 
           const pairId = a.id < b.id ? `${a.id}:${b.id}` : `${b.id}:${a.id}`;
@@ -1662,6 +2531,7 @@
         for (let j = i + 1; j < cars.length; j++) {
           const a = cars[i];
           const b = cars[j];
+          if (a.isParkedOnShoulder() || b.isParkedOnShoulder()) continue;
           const ha = a.getHitbox();
           const hb = b.getHitbox();
 
@@ -1695,6 +2565,7 @@
       gameEndReason = reason;
       activePointerId = null;
       activeCar = null;
+      pointerMoveUsed = false;
       selectedCar = null;
       combo = 0;
       comboMultiplier = 1;
@@ -1720,6 +2591,27 @@
       );
     }
 
+    function triggerObstacleCrash(obstacle, car) {
+      obstacleCrashCount++;
+      const crashX = (obstacle.x + car.x + car.width * 0.5) * 0.5;
+      const crashY = (obstacle.y + car.y) * 0.5;
+
+      for (let i = 0; i < 46; i++) {
+        particles.push(new Particle(crashX, crashY));
+      }
+
+      screenShakeTime = 0.45;
+      screenShakeIntensity = 10;
+      playCrashSound();
+
+      finishRun(
+        'obstacle',
+        '路障事故!',
+        `${obstacle.type.label}沒有及時清掉，車輛撞上去了。下一輪要更快點擊路面障礙物。`,
+        '#fca5a5'
+      );
+    }
+
     function endCurrentGame() {
       if (gameState !== 'playing') return;
 
@@ -1737,6 +2629,7 @@
     function resetGame() {
       cars = [];
       particles = [];
+      obstacles = [];
       spawnWarnings = [];
       floatingTexts = [];
       nearMissPairs = new Set();
@@ -1745,9 +2638,16 @@
       combo = 0;
       comboMultiplier = 1;
       nearMissCount = 0;
+      nextObstacleId = 1;
+      obstacleClearCount = 0;
+      obstacleCrashCount = 0;
+      obstacleLaneChangeCount = 0;
+      obstacleSlowCount = 0;
+      obstacleSpeedUpCount = 0;
       selectedCar = null;
       activePointerId = null;
       activeCar = null;
+      pointerMoveUsed = false;
       gameTime = 0;
       gameEndReason = null;
       vehicleAppearanceSoundCount = 0;
@@ -1756,6 +2656,8 @@
       screenShakeTime = 0;
       screenShakeIntensity = 0;
       currentStage = '入門';
+      currentCityStyleIndex = 0;
+      currentCityStyle = CITY_STYLES[currentCityStyleIndex];
       applyDifficulty();
       updateHud();
       setEndGameButtonVisible(false);
@@ -1763,7 +2665,10 @@
 
     function startGame() {
       unlockAudioForGesture(true);
+      obstacleChallengeEnabled = obstacleChallengeToggle.checked;
+      selectNextRouteMode();
       resetGame();
+      resizeCanvas();
       baseSpeedMultiplier = parseFloat(speedSlider.value) || 1.0;
       menuOverlay.classList.add('hidden');
       gameOverOverlay.classList.add('hidden');
@@ -1815,6 +2720,7 @@
     let activePointerId = null;
     let activeCar = null;
     let lastPointerY = 0;
+    let pointerMoveUsed = false;
 
     function getCanvasPoint(clientX, clientY) {
       const rect = canvas.getBoundingClientRect();
@@ -1870,12 +2776,19 @@
       if (activePointerId !== null) return;
 
       const p = getCanvasPoint(clientX, clientY);
+      const obstacle = findObstacleAt(p.x, p.y);
+      if (obstacle) {
+        clearObstacle(obstacle);
+        return;
+      }
+
       const car = findCarAt(p.x, p.y);
       if (car) {
         activePointerId = id;
         activeCar = car;
         selectedCar = car;
         lastPointerY = p.y;
+        pointerMoveUsed = false;
       }
     }
 
@@ -1883,16 +2796,18 @@
       if (gameState !== 'playing') return;
       if (activePointerId !== id) return;
       if (!activeCar) return;
+      if (pointerMoveUsed) return;
 
       const p = getCanvasPoint(clientX, clientY);
       const dy = p.y - lastPointerY;
-      const threshold = laneHeight * 0.28;
+      const threshold = Math.max(24, laneHeight * 0.28);
 
       if (Math.abs(dy) > threshold) {
         const offset = dy < 0 ? -1 : 1;
         const changed = activeCar.requestLaneChange(offset);
         if (changed) {
           lastPointerY = p.y;
+          pointerMoveUsed = true;
         }
       }
     }
@@ -1901,6 +2816,7 @@
       if (activePointerId === id) {
         activePointerId = null;
         activeCar = null;
+        pointerMoveUsed = false;
       }
     }
 
@@ -1968,6 +2884,7 @@
       const key = e.key.toLowerCase();
       if (key === 'arrowup' || key === 'w' || key === 'arrowdown' || key === 's') {
         e.preventDefault();
+        if (e.repeat) return;
         const car = ensureSelectedCar();
         if (!car) return;
         car.requestLaneChange(key === 'arrowup' || key === 'w' ? -1 : 1);
@@ -2008,8 +2925,10 @@
 
       if (gameState !== 'playing') return;
 
+      updateCityStyle();
       applyDifficulty();
       updateSpawnWarnings(dt);
+      updateObstacles(dt);
 
       spawnTimer += dt;
       if (spawnTimer >= spawnInterval) {
@@ -2036,27 +2955,63 @@
       }
 
       checkNearMisses();
+      if (checkObstacleCollisions()) return;
       checkCollisions();
+    }
+
+    function drawCitySkyline(g, style, yBase, direction = 1) {
+      const blockWidth = 54;
+      for (let x = -blockWidth; x < viewWidth + blockWidth; x += blockWidth) {
+        const heightSeed = 0.45 + ((Math.sin((x + currentCityStyleIndex * 91) * 0.037) + 1) * 0.22);
+        const h = clamp(viewHeight * heightSeed * 0.23, 34, viewHeight * 0.24);
+        const w = blockWidth * (0.62 + ((x / blockWidth + currentCityStyleIndex) % 3) * 0.08);
+        const y = direction > 0 ? yBase - h : yBase;
+        g.fillStyle = style.building[Math.abs(Math.floor(x / blockWidth)) % style.building.length];
+        g.fillRect(x, y, w, h);
+
+        g.fillStyle = style.window;
+        const rows = Math.max(1, Math.floor(h / 18));
+        for (let row = 0; row < rows; row++) {
+          const wy = direction > 0 ? y + 8 + row * 16 : y + h - 14 - row * 16;
+          for (let wx = x + 8; wx < x + w - 8; wx += 16) {
+            if ((Math.floor(wx + row * 13 + currentCityStyleIndex * 19) % 4) !== 0) {
+              g.fillRect(wx, wy, 5, 3);
+            }
+          }
+        }
+      }
     }
 
     function renderBackground() {
       const g = ctx;
       g.save();
+      const style = currentCityStyle;
 
       const bg = g.createLinearGradient(0, 0, 0, viewHeight);
-      bg.addColorStop(0, '#17251d');
-      bg.addColorStop(0.18, '#1f2a22');
-      bg.addColorStop(0.5, '#222824');
-      bg.addColorStop(0.82, '#1e2728');
-      bg.addColorStop(1, '#13251f');
+      bg.addColorStop(0, style.sky[0]);
+      bg.addColorStop(0.45, style.sky[1]);
+      bg.addColorStop(1, style.sky[2]);
       g.fillStyle = bg;
       g.fillRect(0, 0, viewWidth, viewHeight);
 
-      for (let i = 0; i < LANES; i++) {
+      drawCitySkyline(g, style, roadTop, 1);
+      drawCitySkyline(g, style, roadBottom, -1);
+
+      g.fillStyle = style.shoulder;
+      g.fillRect(0, 0, viewWidth, shoulderHeight);
+      g.fillRect(0, roadBottom, viewWidth, shoulderHeight);
+
+      g.fillStyle = style.accent;
+      for (let x = -40; x < viewWidth; x += 112) {
+        g.fillRect(x, shoulderHeight * 0.36, 62, 3);
+        g.fillRect(x + 34, roadBottom + shoulderHeight * 0.62, 62, 3);
+      }
+
+      for (let i = 0; i < currentLaneCount; i++) {
         const y = laneTops[i];
         const laneGradient = g.createLinearGradient(0, y, 0, y + laneHeight);
-        laneGradient.addColorStop(0, i === 1 ? '#29302d' : '#242b27');
-        laneGradient.addColorStop(1, i === 1 ? '#202823' : '#1d2420');
+        laneGradient.addColorStop(0, i % 2 === 0 ? style.road[0] : shadeColor(style.road[0], -8));
+        laneGradient.addColorStop(1, i % 2 === 0 ? style.road[1] : shadeColor(style.road[1], -6));
         g.fillStyle = laneGradient;
         g.fillRect(0, y, viewWidth, laneHeight);
 
@@ -2066,9 +3021,9 @@
         }
       }
 
-      for (let i = 1; i < LANES; i++) {
-        const y = laneHeight * i;
-        g.strokeStyle = 'rgba(250, 204, 21, 0.52)';
+      for (let i = 1; i < currentLaneCount; i++) {
+        const y = roadTop + laneHeight * i;
+        g.strokeStyle = hexToRgba(style.lane, 0.58);
         g.lineWidth = 4;
         g.setLineDash([24, 18]);
         g.beginPath();
@@ -2078,13 +3033,13 @@
       }
       g.setLineDash([]);
 
-      g.strokeStyle = 'rgba(34, 197, 94, 0.38)';
-      g.lineWidth = 8;
+      g.strokeStyle = hexToRgba(style.lane, 0.7);
+      g.lineWidth = 3;
       g.beginPath();
-      g.moveTo(0, 3);
-      g.lineTo(viewWidth, 3);
-      g.moveTo(0, viewHeight - 3);
-      g.lineTo(viewWidth, viewHeight - 3);
+      g.moveTo(0, roadTop);
+      g.lineTo(viewWidth, roadTop);
+      g.moveTo(0, roadBottom);
+      g.lineTo(viewWidth, roadBottom);
       g.stroke();
 
       g.restore();
@@ -2140,6 +3095,10 @@
       renderBackground();
       renderSpawnWarnings();
 
+      for (let obstacle of obstacles) {
+        obstacle.draw(ctx);
+      }
+
       for (let car of cars) {
         car.draw(ctx, car === selectedCar);
       }
@@ -2172,9 +3131,22 @@
         backgroundMusic: {
           src: backgroundMusic.currentSrc || backgroundMusic.src,
           paused: backgroundMusic.paused,
-          loop: backgroundMusic.loop,
+          loop: true,
+          nativeLoop: backgroundMusic.loop,
+          crossfadeSeconds: BACKGROUND_MUSIC_CROSSFADE_SECONDS,
+          crossfadeActive: backgroundMusicCrossfadeActive,
+          activeTrack: backgroundMusicActiveIndex,
+          loopCount: backgroundMusicLoopCount,
           volume: backgroundMusic.volume,
           currentTime: Number(backgroundMusic.currentTime.toFixed(2)),
+          duration: Number.isFinite(backgroundMusic.duration) ? Number(backgroundMusic.duration.toFixed(2)) : null,
+          tracks: backgroundMusicTracks.map((track, index) => ({
+            index,
+            paused: track.paused,
+            volume: Number(track.volume.toFixed(3)),
+            currentTime: Number(track.currentTime.toFixed(2)),
+            fadeLevel: Number(backgroundMusicFadeLevels[index].toFixed(3))
+          })),
           started: backgroundMusicStarted,
           error: backgroundMusicError
         },
@@ -2189,18 +3161,72 @@
         combo,
         comboMultiplier,
         nearMissCount,
+        obstacleClearCount,
+        obstacleCrashCount,
+        obstacleLaneChangeCount,
+        obstacleSlowCount,
+        obstacleSpeedUpCount,
+        obstacleChallenge: {
+          enabled: obstacleChallengeEnabled,
+          menuChecked: obstacleChallengeToggle.checked,
+          maxActive: getMaxActiveObstacles(),
+          dropChance: obstacleChallengeEnabled ? OBSTACLE_DROP_CHANCE : 0,
+          effects: OBSTACLE_TYPES.map(type => ({
+            type: type.name,
+            label: type.label,
+            effect: type.effect,
+            effectLabel: type.effectLabel
+          }))
+        },
         stage: currentStage,
-        lanes: laneCenters.map((center, index) => ({ index, centerY: Math.round(center) })),
+        routeMode: {
+          name: currentRouteMode.name,
+          laneCount: currentLaneCount,
+          speedModifier: currentRouteMode.speedModifier
+        },
+        cityStyle: {
+          name: currentCityStyle.name,
+          index: currentCityStyleIndex,
+          durationSeconds: CITY_STYLE_DURATION
+        },
+        shoulders: [
+          { slot: TOP_SHOULDER_SLOT, label: 'top-shoulder', centerY: Math.round(getSlotCenter(TOP_SHOULDER_SLOT)) },
+          { slot: getBottomShoulderSlot(), label: 'bottom-shoulder', centerY: Math.round(getSlotCenter(getBottomShoulderSlot())) }
+        ],
+        lanes: laneCenters.map((center, index) => ({ index, slot: index, centerY: Math.round(center) })),
         selectedCarId: selectedCar ? selectedCar.id : null,
         cars: cars.map(car => ({
           id: car.id,
           sprite: car.sprite.name,
           laneIndex: car.laneIndex,
+          slot: getSlotLabel(car.laneIndex),
+          parkedOnShoulder: car.isParkedOnShoulder(),
           direction: car.direction > 0 ? 'right' : 'left',
           x: Math.round(car.x),
           y: Math.round(car.y),
+          speed: Math.round(getCurrentCarSpeed(car)),
+          speedEffect: car.speedEffectTime > 0 ? {
+            kind: car.speedEffectKind,
+            multiplier: Number(car.speedEffectMultiplier.toFixed(2)),
+            remainingSeconds: Number(car.speedEffectTime.toFixed(2))
+          } : null,
           appearanceSoundPlayed: car.hasPlayedAppearanceSound,
           changingLane: car.isChangingLane
+        })),
+        obstacles: obstacles.map(obstacle => ({
+          id: obstacle.id,
+          type: obstacle.type.name,
+          label: obstacle.type.label,
+          effect: obstacle.type.effect,
+          effectLabel: obstacle.type.effectLabel,
+          laneIndex: obstacle.laneIndex,
+          slot: getSlotLabel(obstacle.laneIndex),
+          sourceCarId: obstacle.sourceCarId,
+          x: Math.round(obstacle.x),
+          y: Math.round(obstacle.y),
+          age: Number(obstacle.age.toFixed(2)),
+          remainingSeconds: Number(Math.max(0, obstacle.life - obstacle.age).toFixed(2)),
+          armed: obstacle.isArmed()
         })),
         warnings: spawnWarnings.map(w => ({
           laneIndex: w.laneIndex,
@@ -2211,6 +3237,7 @@
         safety: {
           activeHeadOnConflicts: countActiveHeadOnConflicts(),
           maxActiveConflicts,
+          maxActiveObstacles: getMaxActiveObstacles(),
           minSpawnReactionTime
         }
       });

@@ -162,3 +162,49 @@ Original prompt: 請繼續接著改善其他的可以改善的地方 剛剛你�
 - Added volume diagnostics to `render_game_to_text` for browser verification.
 - Fixed a default-setting edge case where missing `localStorage` volume keys could otherwise be interpreted as zero.
 - Verification: inline script syntax passed; develop-web-game Playwright smoke reached `playing` with default `sfx: 1` and `music: 0.24`; focused Playwright check confirmed slider labels, `localStorage` persistence, `backgroundMusic.volume: 0.6` after setting music to 60%, 10/10 vehicle sound buffers loaded, and no console/page errors.
+
+## 2026-05-17 Background Music Crossfade Loop
+
+- User requested mixing the first and last 30 seconds of the background music so it loops smoothly.
+- Replaced native single-element music looping with two coordinated background music tracks.
+- When the active track reaches the final 30 seconds, the next track starts from the beginning at zero volume while the current track fades out and the next fades in.
+- The existing background music volume slider now scales both tracks during normal playback and crossfades.
+- Added crossfade diagnostics to `render_game_to_text`, including active track, loop count, track volumes, fade levels, and crossfade state.
+- Bumped the service worker cache version so installed/PWA users receive the updated loop logic.
+- Verification: inline script syntax and service worker syntax passed; develop-web-game Playwright smoke reached `playing` with no error files; focused Playwright check confirmed 30s crossfade diagnostics and a forced short crossfade completed by switching from track 0 to track 1 with `loopCount: 1`, preserving the music volume slider scaling across both tracks.
+
+## 2026-05-17 Route Modes, Roadside Parking, and City Backdrops
+
+- User requested variable route modes, roadside parking avoidance, one-lane-per-finger-swipe behavior, and 3-5 rotating city backgrounds.
+- Added route mode data for 2, 3, 4, and 5 lane layouts; each new run cycles to the next mode and updates spawn sizing/difficulty capacity.
+- Reworked road geometry to include top and bottom roadside shoulders outside the active traffic lanes.
+- Cars can move from an outside lane onto the shoulder, stop there, then move back into the nearest lane when the player swipes/presses back toward the road.
+- Added target-slot clearance checks so shoulder parking or rejoining only happens when the destination area is reasonably open.
+- Touch/mouse drag control now allows only one lane/shoulder move per pointer gesture; keyboard auto-repeat is ignored for lane changes.
+- Added five city backdrop styles that rotate during play and render different skyline, shoulder, road, and lane colors.
+- Added route/city/shoulder diagnostics to `render_game_to_text` and bumped the service worker cache version.
+- Verification: inline script syntax, service worker syntax, diff whitespace check, and develop-web-game Playwright smoke passed. Focused Playwright checks confirmed route cycling through 2/3/4/5 lanes, shoulder parking and lane rejoin, one pointer gesture moving only one slot, city style rotation, 5-lane mobile geometry, and no console/page errors.
+
+## 2026-05-17 Road Obstacle Click-Clear Mode
+
+- User requested higher difficulty and a new mode where moving vehicles sometimes throw road obstacles such as banana peels, trash, or barriers.
+- Added timed obstacle dropping from active traffic vehicles, with active-obstacle caps that rise as score increases.
+- Added three canvas-rendered obstacle types: banana peel, trash bag, and road barrier barrel.
+- Click/tap handling now clears obstacles before selecting cars, awards a small score bonus, and tracks obstacle clears.
+- Armed obstacles collide with lane traffic if left uncleared, trigger a distinct obstacle game-over reason, and track obstacle crashes.
+- Added obstacle diagnostics to `render_game_to_text` and bumped the service worker cache version for PWA/offline refresh.
+- Verification: inline script syntax, service worker syntax, diff whitespace check, and develop-web-game Playwright smoke passed. Focused Playwright checks confirmed timed vehicle obstacle drops, click-to-clear score/count updates, obstacle crash game-over reason, and no console/page errors; screenshot review confirmed the obstacles render visibly on the road.
+
+## 2026-05-17 Selectable Obstacle Challenge and Effects
+
+- User clarified that obstacle click-clear should not be added by difficulty; it should be enabled before starting the game.
+- Added a start-menu checkbox for `加入路障挑戰`; when unchecked, vehicle obstacle drops and obstacle collision effects are disabled.
+- Made obstacle spawning independent of score/difficulty: fixed active cap, fixed one-drop-per-car rule, and fixed drop probability/delay while the challenge is enabled.
+- Expanded obstacle effects:
+  - Banana peel forces the hit vehicle to change to an adjacent traffic lane.
+  - Trash bag slows the hit vehicle for a short duration.
+  - Road barrier barrel remains the crash/end-run obstacle.
+  - Added an oil-slick obstacle that speeds the hit vehicle up for a short duration.
+- Added per-car speed effect timers/badges and exposed challenge/effect counters, obstacle effects, and car speed-effect state through `render_game_to_text`.
+- Bumped the service worker cache version for installed/PWA users.
+- Verification: inline script syntax, service worker syntax, diff whitespace check, and develop-web-game Playwright smoke passed. Focused Playwright checks confirmed unchecked runs do not spawn obstacles, checked runs can spawn obstacles, and banana/trash/oil/barrier effects produce lane-change/slow/speed-up/game-over outcomes respectively with no console/page errors. Screenshot review confirmed the start-menu checkbox and four obstacle visuals are visible.

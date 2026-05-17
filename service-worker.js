@@ -1,5 +1,5 @@
 const CACHE_PREFIX = 'traffic-lane-defender';
-const CACHE_VERSION = '20260516-pwa-v1';
+const CACHE_VERSION = '20260517-obstacle-effects-v1';
 const CACHE_NAME = `${CACHE_PREFIX}-${CACHE_VERSION}`;
 
 const PRECACHE_URLS = [
