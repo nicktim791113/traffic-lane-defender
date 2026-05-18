@@ -122,3 +122,20 @@ Original prompt: 請繼續接著改善其他的可以改善的地方 剛剛你�
   - mobile crane: hydraulic glide/whine, warning beeps, and metallic clanks.
 - Added a vehicle sound asset version query string to avoid stale browser-cached WAV files and increased the in-menu sound-test spacing to let each 2 second file be heard clearly.
 - Verification so far: generated 10 WAVs at 44.1kHz/16-bit mono, exactly 2.00s each; JS syntax passed; develop-web-game Playwright client passed over local HTTP; focused browser check decoded 10/10 WAV buffers and played all 10 via the sound-test button with no load failures.
+
+## 2026-05-12 Real-Recording Vehicle Sounds (Mixkit)
+
+- User said the synthetic vehicle sounds still felt unrealistic and asked to web-search a sound library and pair real recordings to each vehicle.
+- Picked Mixkit Sound Effects (free, no attribution, commercial use OK per Mixkit Free License). Verified the asset CDN allows direct anonymous mp3 download from `https://assets.mixkit.co/active_storage/sfx/{id}/{id}-preview.mp3`.
+- Hand-matched one Mixkit clip per vehicle:
+  - red-sedan → 1559 "Car start ignition", purple-hatchback → 1538 "Fast car drive by",
+  - yellow-taxi → 719 "Car double horn", blue-bus → 3033 "Old bus arrival",
+  - orange-van → 1623 "Truck start engine", tow-truck → 1077 "Truck reversing beeps loop",
+  - dump-truck → 1622 "Truck accelerates", cement-mixer → 813 "Cement mixer stops",
+  - road-roller → 802 "Construction machine motor passing", mobile-crane → 1618 "Fire truck ladder engine".
+- Added `scripts/build_vehicle_sounds.js` which downloads each preview mp3 (cached under `scripts/sources/`, gitignored), decodes with macOS `afconvert` to mono 44.1 kHz 16-bit WAV, slices a configured 2-second window (with optional loop-to-fill for the 1 s horn / reverse-beep clips), applies smooth fade in/out and peak+RMS normalisation, and writes the final `assets/sounds/{name}.wav`.
+- Wrote `assets/sounds/vehicle-sounds-credits.json` recording each Mixkit ID, title, preview URL, and slice window for reproducibility/attribution-tracking.
+- Bumped `VEHICLE_SOUND_ASSET_VERSION` to `20260512-mixkit-v1` so browsers re-fetch the new WAVs.
+- Kept the synthesis fallbacks (`scripts/generate_vehicle_sounds.js` + `playSynthVehicleSpawnSound`) intact so audio still works if the Mixkit-built WAVs ever fail to load.
+- Added `scripts/static_server.js` and a `.claude/launch.json` config so Claude Preview can serve the project (binds to 0.0.0.0:8765, writes Cache-Control: no-store).
+- Verification: generated 10 WAVs at 44.1 kHz / 16-bit mono / 2.000 s each; loaded via Claude Preview into the live game — `vehicleSoundBuffers.size === 10`, no load failures, `playVehicleSpawnSound` returned `wav-red-sedan`, and a fan-out test played all 10 buffers (`vehicleSoundAssetPlayCount` 0 → 10) with `lastVehicleSoundTag` ending at `wav-mobile-crane`. Only console warning is the pre-existing Tailwind CDN production warning.

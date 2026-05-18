@@ -6,3 +6,6 @@ Thumbs.db
 output/
 .server.pid
 .server.port
+scripts/sources/
+scripts/.cache/
+.claude/

@@ -1,0 +1,86 @@
+{
+  "source": "Mixkit Sound Effects Free License (https://mixkit.co/license/)",
+  "attributionRequired": false,
+  "tracks": [
+    {
+      "vehicle": "red-sedan",
+      "mixkitId": 1559,
+      "title": "Car start ignition",
+      "previewUrl": "https://assets.mixkit.co/active_storage/sfx/1559/1559-preview.mp3",
+      "windowStart": 0.05,
+      "windowDuration": 1.95
+    },
+    {
+      "vehicle": "purple-hatchback",
+      "mixkitId": 1538,
+      "title": "Fast car drive by",
+      "previewUrl": "https://assets.mixkit.co/active_storage/sfx/1538/1538-preview.mp3",
+      "windowStart": 0.4,
+      "windowDuration": 1.95
+    },
+    {
+      "vehicle": "yellow-taxi",
+      "mixkitId": 719,
+      "title": "Car double horn",
+      "previewUrl": "https://assets.mixkit.co/active_storage/sfx/719/719-preview.mp3",
+      "windowStart": 0,
+      "windowDuration": 1.95
+    },
+    {
+      "vehicle": "blue-bus",
+      "mixkitId": 3033,
+      "title": "Old bus arrival",
+      "previewUrl": "https://assets.mixkit.co/active_storage/sfx/3033/3033-preview.mp3",
+      "windowStart": 1.5,
+      "windowDuration": 1.95
+    },
+    {
+      "vehicle": "orange-van",
+      "mixkitId": 1623,
+      "title": "Truck start engine",
+      "previewUrl": "https://assets.mixkit.co/active_storage/sfx/1623/1623-preview.mp3",
+      "windowStart": 0.6,
+      "windowDuration": 1.95
+    },
+    {
+      "vehicle": "tow-truck",
+      "mixkitId": 1077,
+      "title": "Truck reversing beeps loop",
+      "previewUrl": "https://assets.mixkit.co/active_storage/sfx/1077/1077-preview.mp3",
+      "windowStart": 0,
+      "windowDuration": 1.95
+    },
+    {
+      "vehicle": "dump-truck",
+      "mixkitId": 1622,
+      "title": "Truck accelerates",
+      "previewUrl": "https://assets.mixkit.co/active_storage/sfx/1622/1622-preview.mp3",
+      "windowStart": 1.2,
+      "windowDuration": 1.95
+    },
+    {
+      "vehicle": "cement-mixer",
+      "mixkitId": 813,
+      "title": "Cement mixer stops",
+      "previewUrl": "https://assets.mixkit.co/active_storage/sfx/813/813-preview.mp3",
+      "windowStart": 0.5,
+      "windowDuration": 1.95
+    },
+    {
+      "vehicle": "road-roller",
+      "mixkitId": 802,
+      "title": "Construction machine motor passing",
+      "previewUrl": "https://assets.mixkit.co/active_storage/sfx/802/802-preview.mp3",
+      "windowStart": 9,
+      "windowDuration": 1.95
+    },
+    {
+      "vehicle": "mobile-crane",
+      "mixkitId": 1618,
+      "title": "Fire truck ladder engine",
+      "previewUrl": "https://assets.mixkit.co/active_storage/sfx/1618/1618-preview.mp3",
+      "windowStart": 0.6,
+      "windowDuration": 1.95
+    }
+  ]
+}
