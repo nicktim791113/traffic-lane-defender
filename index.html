@@ -220,7 +220,7 @@
             <span class="min-w-0">
               <span class="block text-sm font-semibold text-amber-100">加入路障挑戰</span>
               <span class="block text-[11px] leading-relaxed text-slate-300">
-                車輛會丟出不同路障；點擊可清除，漏掉會觸發換道、減速、加速或撞擊。
+                車輛會丟出不同路障；點擊可清除。漏掉會觸發換道、減速、加速；撞到路障桶會卡住停車，要點掉路障才能放行，否則後車追撞就 game over。
               </span>
             </span>
           </label>
@@ -413,12 +413,12 @@
       {
         name: 'road-barrier',
         label: '路障桶',
-        effect: 'crash',
-        effectLabel: '撞擊',
+        effect: 'stop',
+        effectLabel: '停車',
         color: '#fb923c',
         accent: '#f8fafc',
         radius: 19,
-        life: 9.6
+        life: 11.0
       },
       {
         name: 'oil-slick',
@@ -495,7 +495,7 @@
     let nextCarId = 1;
     let nextObstacleId = 1;
     let obstacleClearCount = 0;
-    let obstacleCrashCount = 0;
+    let obstacleStuckCount = 0;
     let score = 0;
     let combo = 0;
     let comboMultiplier = 1;
@@ -1490,8 +1490,13 @@
         this.speedEffectKind = null;
         this.speedEffectMultiplier = 1;
         this.speedEffectTime = 0;
+        this.stuckOnObstacleId = null;
         this.resize();
         this.x = direction > 0 ? -this.width - 24 : viewWidth + 24;
+      }
+
+      isStuck() {
+        return this.stuckOnObstacleId !== null;
       }
 
       resize() {
@@ -1502,6 +1507,11 @@
 
       update(dt) {
         this.updateSpeedEffect(dt);
+        if (this.isStuck()) {
+          // Frozen by a road-barrier; only keep visuals/audio responsive.
+          this.playAppearanceSoundIfVisible();
+          return;
+        }
         const speed = getCurrentCarSpeed(this);
         if (!this.isParkedOnShoulder()) {
           this.x += this.direction * speed * dt;
@@ -1578,6 +1588,7 @@
 
       requestLaneChange(offset) {
         if (this.isChangingLane) return false;
+        if (this.isStuck()) return false;
         const newLane = getAdjacentSlot(this.laneIndex, offset);
         if (newLane === null || newLane === undefined) return false;
         if (!isSlotClearForCar(this, newLane)) return false;
@@ -1587,6 +1598,7 @@
 
       startLaneChangeTo(newLane, shouldPlaySound = true) {
         if (this.isChangingLane) return false;
+        if (this.isStuck()) return false;
         this.laneIndex = newLane;
         this.startY = this.y;
         this.targetY = getSlotCenter(newLane);
@@ -1724,10 +1736,18 @@
         this.radius = this.type.radius;
         this.life = this.type.life;
         this.age = 0;
+        this.stuckCarId = null;
+      }
+
+      hasStuckCar() {
+        return this.stuckCarId !== null;
       }
 
       update(dt) {
-        this.age += dt;
+        // Pause ageing while a car is frozen on it — the player must tap to clear.
+        if (!this.hasStuckCar()) {
+          this.age += dt;
+        }
         this.y = getSlotCenter(this.laneIndex);
       }
 
@@ -1759,6 +1779,7 @@
       draw(g) {
         const fadeOut = clamp((this.life - this.age) / 1.2, 0, 1);
         const blink = 0.72 + Math.sin(gameTime * 9 + this.id) * 0.18;
+        const stuckPulse = 0.6 + Math.sin(gameTime * 14 + this.id) * 0.4;
 
         g.save();
         g.globalAlpha = Math.min(1, fadeOut + 0.18);
@@ -1770,6 +1791,15 @@
         g.beginPath();
         g.ellipse(this.x, this.y + this.radius * 0.65, this.radius * 1.08, this.radius * 0.36, 0, 0, Math.PI * 2);
         g.fill();
+
+        if (this.hasStuckCar()) {
+          // Urgent red pulse so the player notices what to tap.
+          g.strokeStyle = `rgba(248, 113, 113, ${0.55 + 0.4 * stuckPulse})`;
+          g.lineWidth = 4;
+          g.beginPath();
+          g.arc(this.x, this.y, this.radius + 14 + stuckPulse * 4, 0, Math.PI * 2);
+          g.stroke();
+        }
 
         g.strokeStyle = this.isArmed()
           ? `rgba(253, 186, 116, ${0.36 * blink})`
@@ -2079,6 +2109,7 @@
     }
 
     function getCurrentCarSpeed(car) {
+      if (car && car.isStuck && car.isStuck()) return 0;
       const effectMultiplier = car && car.speedEffectTime > 0
         ? (car.speedEffectMultiplier || 1)
         : 1;
@@ -2362,9 +2393,18 @@
     }
 
     function clearObstacle(obstacle) {
+      const stuckCar = obstacle.hasStuckCar()
+        ? cars.find(c => c.id === obstacle.stuckCarId)
+        : null;
       if (!removeObstacle(obstacle)) return false;
       obstacleClearCount++;
-      addScore(1, '清除 +1', obstacle.x, obstacle.y - obstacle.radius, '#fef08a');
+      if (stuckCar) {
+        stuckCar.stuckOnObstacleId = null;
+        floatingTexts.push(new FloatingText('放行!', stuckCar.x + stuckCar.width / 2, stuckCar.y - stuckCar.height * 0.7, '#bef264'));
+        addScore(2, '解救 +2', obstacle.x, obstacle.y - obstacle.radius, '#bef264');
+      } else {
+        addScore(1, '清除 +1', obstacle.x, obstacle.y - obstacle.radius, '#fef08a');
+      }
       playNearMissSound();
       return true;
     }
@@ -2380,11 +2420,13 @@
       if (!obstacleChallengeEnabled) return false;
       for (let obstacle of obstacles) {
         if (!obstacle.isArmed()) continue;
+        if (obstacle.hasStuckCar()) continue; // already holding a car; ignore until tapped
         const obstacleHitbox = obstacle.getHitbox();
         for (let car of cars) {
           if (!isTrafficLaneSlot(car.laneIndex)) continue;
           if (car.laneIndex !== obstacle.laneIndex) continue;
           if (car.isParkedOnShoulder()) continue;
+          if (car.isStuck()) continue;
 
           if (rectsOverlap(obstacleHitbox, car.getHitbox())) {
             return applyObstacleEffect(obstacle, car);
@@ -2395,9 +2437,11 @@
     }
 
     function applyObstacleEffect(obstacle, car) {
-      if (obstacle.type.effect === 'crash') {
-        triggerObstacleCrash(obstacle, car);
-        return true;
+      if (obstacle.type.effect === 'stop') {
+        stickCarOnObstacle(obstacle, car);
+        // Returning false keeps the run alive — the rear-end check still
+        // applies if another car later piles into the stuck one.
+        return false;
       }
 
       removeObstacle(obstacle);
@@ -2591,25 +2635,40 @@
       );
     }
 
-    function triggerObstacleCrash(obstacle, car) {
-      obstacleCrashCount++;
-      const crashX = (obstacle.x + car.x + car.width * 0.5) * 0.5;
-      const crashY = (obstacle.y + car.y) * 0.5;
+    function stickCarOnObstacle(obstacle, car) {
+      if (car.isStuck()) return;
 
-      for (let i = 0; i < 46; i++) {
-        particles.push(new Particle(crashX, crashY));
+      obstacleStuckCount++;
+      car.stuckOnObstacleId = obstacle.id;
+      obstacle.stuckCarId = car.id;
+
+      // Snap the car flush against the cone and stop any in-flight lane change.
+      const offset = obstacle.radius + car.width * 0.5 - 2;
+      if (car.direction > 0) {
+        car.x = obstacle.x - car.width - obstacle.radius * 0.4;
+      } else {
+        car.x = obstacle.x + obstacle.radius * 0.4;
       }
+      car.isChangingLane = false;
+      car.laneChangeProgress = 0;
+      car.y = getSlotCenter(car.laneIndex);
+      car.startY = car.y;
+      car.targetY = car.y;
+      car.speedEffectKind = null;
+      car.speedEffectMultiplier = 1;
+      car.speedEffectTime = 0;
 
-      screenShakeTime = 0.45;
-      screenShakeIntensity = 10;
-      playCrashSound();
+      // Light feedback — no game-over.
+      const fxX = obstacle.x;
+      const fxY = obstacle.y;
+      createObstacleEffectParticles(fxX, fxY, obstacle.type.color, 14);
+      floatingTexts.push(new FloatingText('停車! 點路障清除', obstacle.x, obstacle.y - obstacle.radius - 14, '#fca5a5'));
+      screenShakeTime = Math.max(screenShakeTime, 0.18);
+      screenShakeIntensity = Math.max(screenShakeIntensity, 5);
+      playNearMissSound();
 
-      finishRun(
-        'obstacle',
-        '路障事故!',
-        `${obstacle.type.label}沒有及時清掉，車輛撞上去了。下一輪要更快點擊路面障礙物。`,
-        '#fca5a5'
-      );
+      // Avoid letting `offset` be reported as unused — kept for future tuning.
+      void offset;
     }
 
     function endCurrentGame() {
@@ -2640,7 +2699,7 @@
       nearMissCount = 0;
       nextObstacleId = 1;
       obstacleClearCount = 0;
-      obstacleCrashCount = 0;
+      obstacleStuckCount = 0;
       obstacleLaneChangeCount = 0;
       obstacleSlowCount = 0;
       obstacleSpeedUpCount = 0;
@@ -3162,7 +3221,7 @@
         comboMultiplier,
         nearMissCount,
         obstacleClearCount,
-        obstacleCrashCount,
+        obstacleStuckCount,
         obstacleLaneChangeCount,
         obstacleSlowCount,
         obstacleSpeedUpCount,
@@ -3211,7 +3270,9 @@
             remainingSeconds: Number(car.speedEffectTime.toFixed(2))
           } : null,
           appearanceSoundPlayed: car.hasPlayedAppearanceSound,
-          changingLane: car.isChangingLane
+          changingLane: car.isChangingLane,
+          stuck: car.isStuck(),
+          stuckOnObstacleId: car.stuckOnObstacleId
         })),
         obstacles: obstacles.map(obstacle => ({
           id: obstacle.id,
@@ -3226,7 +3287,8 @@
           y: Math.round(obstacle.y),
           age: Number(obstacle.age.toFixed(2)),
           remainingSeconds: Number(Math.max(0, obstacle.life - obstacle.age).toFixed(2)),
-          armed: obstacle.isArmed()
+          armed: obstacle.isArmed(),
+          holdingCarId: obstacle.stuckCarId
         })),
         warnings: spawnWarnings.map(w => ({
           laneIndex: w.laneIndex,

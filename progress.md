@@ -208,3 +208,28 @@ Original prompt: 請繼續接著改善其他的可以改善的地方 剛剛你�
 - Added per-car speed effect timers/badges and exposed challenge/effect counters, obstacle effects, and car speed-effect state through `render_game_to_text`.
 - Bumped the service worker cache version for installed/PWA users.
 - Verification: inline script syntax, service worker syntax, diff whitespace check, and develop-web-game Playwright smoke passed. Focused Playwright checks confirmed unchecked runs do not spawn obstacles, checked runs can spawn obstacles, and banana/trash/oil/barrier effects produce lane-change/slow/speed-up/game-over outcomes respectively with no console/page errors. Screenshot review confirmed the start-menu checkbox and four obstacle visuals are visible.
+
+## 2026-05-18 Road Barrier: Stop-Until-Tap (instead of instant game over)
+
+- User asked to soften the road-barrier obstacle: instead of ending the run on collision, the hit vehicle should stop in place and stay stuck until the player taps the barrier to clear it. Rear-end / head-on collisions with the now-stuck car still end the run.
+- Changed the `road-barrier` OBSTACLE_TYPES entry: `effect: 'crash'` → `effect: 'stop'`, `effectLabel: '撞擊'` → `effectLabel: '停車'`, bumped `life` to 11s (idle expiry only — see freeze below).
+- Added per-entity stuck state:
+  - `Car.stuckOnObstacleId` (null when free) + `Car.isStuck()` helper.
+  - `RoadObstacle.stuckCarId` (null when free) + `RoadObstacle.hasStuckCar()` helper.
+- `applyObstacleEffect` no longer calls the (now removed) `triggerObstacleCrash` for road-barriers; it invokes the new `stickCarOnObstacle(obstacle, car)` which:
+  - Snaps the car flush in front of the cone (direction-aware), cancels in-flight lane change, clears any active speed effect.
+  - Adds a "停車! 點路障清除" floating text, plays a light near-miss sound, and triggers a brief screen shake — no game-over.
+  - Increments the renamed `obstacleStuckCount` (previously `obstacleCrashCount`).
+- `Car.update` early-returns when stuck so the car cannot drift or change lane while frozen. `requestLaneChange` and `startLaneChangeTo` also refuse while stuck. `getCurrentCarSpeed(car)` returns 0 for stuck cars so the spawn-safety predictor models them correctly as stationary head-on hazards.
+- `RoadObstacle.update` pauses ageing while `hasStuckCar()` — the obstacle does not expire on its own, so the only way to free the car is a tap.
+- `checkObstacleCollisions` now skips obstacles that already hold a car (and cars already stuck) so the stop effect isn't re-applied every frame.
+- `clearObstacle` looks up any car holding on to the obstacle, clears its `stuckOnObstacleId`, awards `+2` ("解救 +2") with a green "放行!" floating text instead of the normal `+1` "清除 +1", and continues with the existing remove + sound path.
+- Existing `checkCollisions` car-pair logic (unchanged) already triggers a crash game-over when an oncoming or rear car overlaps the stuck car.
+- Updated start-menu copy to describe the new behavior; added `stuck` / `stuckOnObstacleId` to per-car diagnostics and `holdingCarId` to per-obstacle diagnostics in `render_game_to_text`.
+- Verification: inline-script syntax check passed; Claude Preview was unable to run a visible canvas (iframe hidden 0×0) so I drove the logic programmatically against a hand-injected viewport (900×480, 3 lanes). Cases covered:
+  - Car drives into an armed road-barrier → `applyObstacleEffect` returns `false`, `car.isStuck()=true`, `getCurrentCarSpeed(car)=0`, `obstacle.stuckCarId=car.id`, `obstacleStuckCount=1`, gameState stays `playing`, floating text "停車! 點路障清除" emitted.
+  - After 60 ticks (~1s) of `car.update` + `obstacle.update`, car.x is unchanged and `obstacle.age` did not advance (life freeze confirmed).
+  - `car.requestLaneChange(-1)` while stuck returns `false`.
+  - `findObstacleAt(ob.x, ob.y)` + `clearObstacle` removes the obstacle, sets `car.stuckOnObstacleId=null`, `obstacleClearCount=1`, "解救 +2" floating text; the next 60 ticks then move the car ~baseSpeed × dt forward as expected.
+  - With the car stuck, dropping an overlapping oncoming car and running `checkCollisions()` returns `true`, `gameState='gameover'`, `gameEndReason='crash'` — confirming rear-end / head-on still ends the run.
+
