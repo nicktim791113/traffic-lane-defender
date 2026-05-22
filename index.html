@@ -79,6 +79,27 @@
       box-shadow: 0 24px 80px rgba(0, 0, 0, 0.44);
     }
 
+    .route-mode-btn {
+      padding: 6px 0;
+      border-radius: 6px;
+      border: 1px solid rgba(148, 163, 184, 0.28);
+      background: rgba(15, 23, 42, 0.55);
+      color: rgb(203, 213, 225);
+      font-size: 12px;
+      line-height: 1.2;
+      transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+    }
+    .route-mode-btn:hover {
+      background: rgba(30, 41, 59, 0.85);
+      color: rgb(241, 245, 249);
+    }
+    .route-mode-btn.is-active {
+      background: rgba(34, 211, 238, 0.18);
+      border-color: rgba(103, 232, 249, 0.65);
+      color: rgb(165, 243, 252);
+      font-weight: 600;
+    }
+
     @media (max-width: 640px) {
       .app-shell {
         padding: 8px;
@@ -213,6 +234,23 @@
             </div>
           </div>
 
+          <div class="mb-4">
+            <div class="flex justify-between items-center mb-1.5 text-xs sm:text-sm">
+              <span>車道模式</span>
+              <span id="routeModeDisplay" class="font-mono text-cyan-300">自動輪換</span>
+            </div>
+            <div id="routeModeButtons" class="grid grid-cols-5 gap-1.5">
+              <button type="button" data-route-mode="auto" class="route-mode-btn is-active">輪換</button>
+              <button type="button" data-route-mode="0" class="route-mode-btn">2 線</button>
+              <button type="button" data-route-mode="1" class="route-mode-btn">3 線</button>
+              <button type="button" data-route-mode="2" class="route-mode-btn">4 線</button>
+              <button type="button" data-route-mode="3" class="route-mode-btn">5 線</button>
+            </div>
+            <div class="text-[10px] sm:text-xs text-slate-400 mt-1 leading-relaxed">
+              「輪換」每次開始遊戲會自動切換路型；選 2/3/4/5 則固定使用該車道數。
+            </div>
+          </div>
+
           <label class="mb-4 flex items-start gap-3 rounded-lg border border-amber-300/30 bg-amber-300/10 px-3 py-3 text-left">
             <input id="obstacleChallengeToggle"
                    type="checkbox"
@@ -309,6 +347,11 @@
     const speedSlider = document.getElementById('speedSlider');
     const speedDisplay = document.getElementById('speedDisplay');
     const obstacleChallengeToggle = document.getElementById('obstacleChallengeToggle');
+    const routeModeDisplay = document.getElementById('routeModeDisplay');
+    const routeModeButtonsWrap = document.getElementById('routeModeButtons');
+    const routeModeButtons = routeModeButtonsWrap
+      ? Array.from(routeModeButtonsWrap.querySelectorAll('button[data-route-mode]'))
+      : [];
     const startBtn = document.getElementById('startBtn');
     const soundTestBtn = document.getElementById('soundTestBtn');
     const restartBtn = document.getElementById('restartBtn');
@@ -328,6 +371,7 @@
     const STORAGE_KEY = 'trafficLaneDefenderBestScore';
     const SFX_VOLUME_KEY = 'trafficLaneDefenderSfxVolume';
     const MUSIC_VOLUME_KEY = 'trafficLaneDefenderMusicVolume';
+    const ROUTE_MODE_PREF_KEY = 'trafficLaneDefenderRouteMode';
     const DEFAULT_SFX_VOLUME = 1.0;
     const DEFAULT_MUSIC_VOLUME = 0.24;
     const ROUTE_MODES = [
@@ -472,6 +516,7 @@
     let laneCenters = [];
     let laneTops = [];
     let routeModeIndex = -1;
+    let routeModePreference = 'auto';
     let currentRouteMode = ROUTE_MODES[1];
     let currentLaneCount = DEFAULT_LANE_COUNT;
     let currentCityStyleIndex = 0;
@@ -694,10 +739,37 @@
     }
 
     function selectNextRouteMode() {
-      routeModeIndex = (routeModeIndex + 1 + ROUTE_MODES.length) % ROUTE_MODES.length;
+      if (routeModePreference === 'auto') {
+        routeModeIndex = (routeModeIndex + 1 + ROUTE_MODES.length) % ROUTE_MODES.length;
+      } else {
+        const fixed = Number(routeModePreference);
+        routeModeIndex = Number.isInteger(fixed)
+          ? clamp(fixed, 0, ROUTE_MODES.length - 1)
+          : 1;
+      }
       currentRouteMode = ROUTE_MODES[routeModeIndex];
       currentLaneCount = currentRouteMode.laneCount;
       updateHud();
+    }
+
+    function setRouteModePreference(pref, options = {}) {
+      const valid = pref === 'auto'
+        || (Number.isInteger(Number(pref)) && Number(pref) >= 0 && Number(pref) < ROUTE_MODES.length);
+      routeModePreference = valid ? pref : 'auto';
+      if (routeModePreference !== 'auto') {
+        routeModeIndex = Number(routeModePreference) - 1;
+      }
+      if (routeModeDisplay) {
+        routeModeDisplay.textContent = routeModePreference === 'auto'
+          ? '自動輪換'
+          : ROUTE_MODES[Number(routeModePreference)].name;
+      }
+      routeModeButtons.forEach(btn => {
+        btn.classList.toggle('is-active', btn.dataset.routeMode === String(routeModePreference));
+      });
+      if (options.persist !== false) {
+        try { localStorage.setItem(ROUTE_MODE_PREF_KEY, routeModePreference); } catch (_) {}
+      }
     }
 
     function updateCityStyle(force = false) {
@@ -2769,6 +2841,18 @@
         setAudioPanelVisible(false);
       }
     });
+
+    routeModeButtons.forEach(btn => {
+      btn.addEventListener('click', function () {
+        setRouteModePreference(btn.dataset.routeMode);
+      });
+    });
+
+    (function initRouteModePreference() {
+      let stored = 'auto';
+      try { stored = localStorage.getItem(ROUTE_MODE_PREF_KEY) || 'auto'; } catch (_) {}
+      setRouteModePreference(stored, { persist: false });
+    })();
 
     startBtn.addEventListener('click', startGame);
     soundTestBtn.addEventListener('click', playVehicleSoundTest);
